@@ -1115,6 +1115,7 @@ ui.run(
     title="ProofOfSweat",
     host="0.0.0.0",
     reload=False,
+    workers=1,
     port=port,
     storage_secret=os.getenv("STORAGE_SECRET"),
 )
