@@ -16,12 +16,36 @@ from auth import create_user, get_user_by_id
 from auth import login as auth_login
 from db import get_session, init_db
 from storage import get_signed_url, save_image
+from pathlib import Path
 
 load_dotenv()
 # -------------------------
 # Init
 # -------------------------
+app.add_static_files('/static', str(Path(__file__).parent / 'static'))
 init_db()
+
+ui.add_head_html("""
+<script>
+(function() {
+  function setFavicon(url) {
+    const rels = ['icon', 'shortcut icon', 'apple-touch-icon'];
+    rels.forEach(rel => {
+      let link = document.querySelector('link[rel="' + rel + '"]');
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = rel;
+        document.head.appendChild(link);
+      }
+      link.type = 'image/png';
+      link.href = url;
+    });
+  }
+  setFavicon('/static/favicon.png');
+})();
+</script>
+""", shared=True)
+
 
 ui.add_head_html(
     """
