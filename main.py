@@ -614,7 +614,7 @@ def center_column():
 # -------------------------
 @ui.page("/login")
 def page_login():
-    app_shell("💗 ProofOfSweat")
+    app_shell("💗 SweatCheck")
 
     with ui.column().classes("w-full items-stretch").style(
         "max-width:520px; margin: 0 auto; padding: 12px;"
@@ -1109,13 +1109,13 @@ def page_report():
 # -------------------------
 # Run
 # -------------------------
-
-port = int(os.getenv("PORT", "8000"))
-ui.run(
-    title="ProofOfSweat",
-    host="0.0.0.0",
-    reload=False,
-    workers=1,
-    port=port,
-    storage_secret=os.getenv("STORAGE_SECRET"),
-)
+if __name__ in {"__main__", "__mp_main__"}:
+    port = int(os.getenv("PORT", "8080"))
+    ui.run(
+        title="SweatCheck",
+        host="0.0.0.0",
+        reload=False,
+        workers=1,
+        port=port,
+        storage_secret=os.getenv("STORAGE_SECRET"),
+    )
