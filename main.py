@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import base64
 import io
@@ -22,6 +22,40 @@ load_dotenv()
 # Init
 # -------------------------
 init_db()
+
+ui.add_head_html(
+    """
+<style id="mobile_header_footer_icon_only_css">
+@media (max-width: 640px) {
+
+  /* ukryj WSZYSTKO w treści buttona poza ikoną i badge */
+  .mobile-icon-only-area .q-btn .q-btn__content > :not(.q-icon):not(.q-badge) {
+    display: none !important;
+  }
+
+  /* dla pewności: Quasar czasem używa tych klas */
+  .mobile-icon-only-area .q-btn .q-btn__label,
+  .mobile-icon-only-area .q-btn .q-btn__content-text,
+  .mobile-icon-only-area .q-btn .block {
+    display: none !important;
+  }
+
+  .mobile-icon-only-area .q-btn .q-btn__content {
+    gap: 0 !important;
+    justify-content: center;
+  }
+
+  .mobile-icon-only-area .q-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 10px !important;
+  }
+}
+</style>
+""",
+    shared=True,
+)
+
 
 PINK = "#A11D4E"  # bordo
 BG = "#FFF6FA"  # jasny róż
@@ -387,6 +421,54 @@ def list_notifications(user_id: int, limit: int = 30):
     return [dict(r._mapping) for r in rows]
 
 
+def parse_notifications(user_id: int):
+    notifications = list_notifications(user_id)
+    parsed = []
+    for n in notifications:
+        p = dict(n)  # kopiuj
+        p_payload = p.get("payload") or {}
+        if p["type"] == "friend_request":
+            from_user_id = p_payload.get("from_user_id")
+            from_user = get_user_by_id(from_user_id) if from_user_id else None
+            p["message"] = (
+                f"Nowe zaproszenie od {from_user['nick']}"
+                if from_user
+                else "Nowe zaproszenie"
+            )
+            p["user_friendly_type"] = "Zaproszenie do znajomych"
+            p["user_friendly_created_at"] = (
+                p["created_at"].strftime("%Y-%m-%d %H:%M") if p["created_at"] else ""
+            )
+        elif p["type"] == "friend_accept":
+            by_user_id = p_payload.get("by_user_id")
+            by_user = get_user_by_id(by_user_id) if by_user_id else None
+            p["message"] = (
+                f"{by_user['nick']} zaakceptował(a) Twoje zaproszenie"
+                if by_user
+                else "Ktoś zaakceptował(a) Twoje zaproszenie"
+            )
+            p["user_friendly_type"] = "Zaakceptowano zaproszenie"
+            p["user_friendly_created_at"] = (
+                p["created_at"].strftime("%Y-%m-%d %H:%M") if p["created_at"] else ""
+            )
+        elif p["type"] == "friend_decline":
+            by_user_id = p_payload.get("by_user_id")
+            by_user = get_user_by_id(by_user_id) if by_user_id else None
+            p["message"] = (
+                f"{by_user['nick']} odrzucił(a) Twoje zaproszenie"
+                if by_user
+                else "Ktoś odrzucił(a) Twoje zaproszenie"
+            )
+            p["user_friendly_type"] = "Odrzucono zaproszenie"
+            p["user_friendly_created_at"] = (
+                p["created_at"].strftime("%Y-%m-%d %H:%M") if p["created_at"] else ""
+            )
+        else:
+            p["message"] = "Nieznany typ powiadomienia"
+        parsed.append(p)
+    return parsed
+
+
 def mark_all_notifications_read(user_id: int):
     with get_session() as s:
         s.execute(
@@ -536,25 +618,22 @@ def logout():
     ui.navigate.to("/login")  # przekierowanie na login
 
 
+def nav_button(label: str, icon: str, path: str):
+    # desktop/tablet
+    ui.button(label, icon=icon, on_click=lambda: ui.navigate.to(path)).props(
+        "flat round"
+    ).classes("gt-xs")
+
+    # mobile
+    with ui.button(icon=icon, on_click=lambda: ui.navigate.to(path)).props(
+        "flat round"
+    ).classes("lt-sm"):
+        ui.tooltip(label)
+
+
 def app_shell(title: str, *, show_back: bool = False):
     ui.colors(primary=PINK, secondary=PANEL, accent=PINK)
     ui.query("body").style(f"background-color:{BG};")
-
-    ui.add_head_html(
-        """
-        <style>
-        /* MOBILE: ukryj tekst w przyciskach, zostaw ikonę */
-        @media (max-width: 640px) {
-        .mobile-icon-only .q-btn__content span:not(.q-icon) { display: none !important; }
-        .mobile-icon-only .q-btn__content .q-icon { margin: 0 !important; }
-        .mobile-icon-only { min-width: 44px; padding: 8px 10px; }
-        .mobile-icon-only .q-btn__content { gap: 0 !important; }
-        }
-
-        /* DESKTOP: bez zmian (teksty widoczne) - tu nie trzeba nic robić */
-        </style>
-        """
-    )
 
     with ui.header(elevated=True).classes("items-center justify-between"):
         with ui.row().classes("items-center"):
@@ -567,17 +646,31 @@ def app_shell(title: str, *, show_back: bool = False):
         if current_user():
             u = current_user()
             cnt = unread_notifications_count(int(u["id"]))
-            if cnt > 0:
-                ui.badge(str(cnt)).style(f"background:{PINK}; color:white;")
-            ui.button(
-                "Powiadomienia",
-                icon="notifications",
-                on_click=lambda: ui.navigate.to("/notifications"),
-            ).props("flat round").classes("text-white mobile-icon-only")
+            with ui.element("div").classes("relative"):
+                ui.button(
+                    icon="notifications",
+                    on_click=lambda: ui.navigate.to("/notifications"),
+                ).props("flat round").classes("gt-xs text-white")
+
+                with ui.button(
+                    icon="notifications",
+                    on_click=lambda: ui.navigate.to("/notifications"),
+                ).props("flat round").classes("lt-sm text-white"):
+                    ui.tooltip("🔔")
+
+                if cnt > 0:
+                    ui.badge(str(cnt)).classes("absolute -top-1 -right-1").style(
+                        f"background:white !important; color:{PINK} !important;"
+                    )
 
             ui.button("Wyloguj", icon="logout", on_click=logout).props(
                 "flat round"
-            ).classes("text-white mobile-icon-only")
+            ).classes("gt-xs text-white")
+
+            with ui.button(icon="logout", on_click=logout).props("flat round").classes(
+                "lt-sm text-white"
+            ):
+                ui.tooltip("Wyloguj")
 
     # bottom nav for mobile
     if current_user():
@@ -585,23 +678,11 @@ def app_shell(title: str, *, show_back: bool = False):
             with ui.row().classes("w-full justify-around").style(
                 f"background:{PANEL}; padding:10px;"
             ):
-                ui.button(
-                    "Feed", icon="dynamic_feed", on_click=lambda: ui.navigate.to("/")
-                ).props("flat round").classes("mobile-icon-only")
-                ui.button(
-                    "Dodaj", icon="add", on_click=lambda: ui.navigate.to("/add")
-                ).props("flat round").classes("mobile-icon-only")
-                ui.button(
-                    "Znajomi", icon="group", on_click=lambda: ui.navigate.to("/friends")
-                ).props("flat round").classes("mobile-icon-only")
-                ui.button(
-                    "Raport",
-                    icon="insights",
-                    on_click=lambda: ui.navigate.to("/report"),
-                ).props("flat round").classes("mobile-icon-only")
-                ui.button(
-                    "Profil", icon="person", on_click=lambda: ui.navigate.to("/profile")
-                ).props("flat round").classes("mobile-icon-only")
+                nav_button("Feed", "dynamic_feed", "/")
+                nav_button("Znajomi", "group", "/friends")
+                nav_button("Dodaj", "add", "/add")
+                nav_button("Raport", "insights", "/report")
+                nav_button("Profil", "person", "/profile")
 
 
 def card():
@@ -627,7 +708,7 @@ def center_column():
 # -------------------------
 @ui.page("/login")
 def page_login():
-    app_shell("💗 SweatCheck")
+    app_shell("SweatCheck")
 
     with ui.column().classes("w-full items-stretch").style(
         "max-width:520px; margin: 0 auto; padding: 12px;"
@@ -678,7 +759,7 @@ def page_feed():
         return
     refresh_user_in_session()
 
-    app_shell("📰 Tablica")
+    app_shell("Tablica")
 
     u = current_user()
     workouts = get_feed_workouts(int(u["id"]))
@@ -723,12 +804,39 @@ def page_feed():
                         ui.link("🎬 Link do filmiku", w["video_url"]).classes("text-sm")
 
 
+def delete_notification(user_id: int, notification_id: int) -> tuple[bool, str]:
+    with get_session() as s:
+        note = s.execute(
+            text(
+                """
+            SELECT id FROM notifications
+            WHERE id=:nid AND user_id=:uid
+        """
+            ),
+            {"nid": notification_id, "uid": user_id},
+        ).fetchone()
+
+        if not note:
+            return False, "Nie znaleziono powiadomienia."
+
+        s.execute(
+            text(
+                """
+            DELETE FROM notifications WHERE id=:nid AND user_id=:uid
+        """
+            ),
+            {"nid": notification_id, "uid": user_id},
+        )
+
+    return True, "Usunięto powiadomienie."
+
+
 @ui.page("/notifications")
 def page_notifications():
     if not require_login():
         return
     refresh_user_in_session()
-    app_shell("🔔 Powiadomienia")
+    app_shell("Powiadomienia")
 
     u = current_user()
     with center_column():
@@ -740,17 +848,26 @@ def page_notifications():
             ),
         ).classes("w-full").props("unelevated")
 
-        notes = list_notifications(int(u["id"]))
+        notes = parse_notifications(int(u["id"]))
         if not notes:
             with card():
                 ui.label("Brak powiadomień.")
             return
 
         for n in notes:
-            with card():
-                ui.label(f"{n['type']}").classes("font-bold")
-                ui.label(str(n["created_at"])).classes("text-xs opacity-70")
-                ui.label(str(n["payload"])).classes("text-sm opacity-80")
+            with card().classes("relative"):
+                ui.button(
+                    icon="delete",
+                    on_click=lambda nid=n["id"]: (
+                        delete_notification(int(u["id"]), nid),
+                        ui.navigate.to("/notifications"),
+                    ),
+                ).props("flat round dense").classes("absolute top-2 right-2")
+                ui.label(f"{n['user_friendly_type']}").classes("font-bold")
+                ui.label(str(n["user_friendly_created_at"])).classes(
+                    "text-xs opacity-70"
+                )
+                ui.label(str(n["message"])).classes("text-sm opacity-80")
 
 
 @ui.page("/add")
@@ -759,7 +876,7 @@ def page_add_workout():
         return
     refresh_user_in_session()
 
-    app_shell("➕ Dodaj trening")
+    app_shell("Dodaj trening")
 
     u = current_user()
     photo_bytes: dict[str, Optional[bytes]] = {"data": None}
@@ -854,7 +971,7 @@ def page_friends():
         return
     refresh_user_in_session()
 
-    app_shell("👭 Znajomi")
+    app_shell("Znajomi")
 
     u = current_user()
     uid = int(u["id"])
@@ -977,7 +1094,7 @@ def page_profile():
         return
     refresh_user_in_session()
 
-    app_shell("👤 Profil")
+    app_shell("Profil")
 
     u = current_user()
     avatar_bytes: dict[str, Optional[bytes]] = {"data": None}
@@ -1075,7 +1192,7 @@ def page_report():
         return
     refresh_user_in_session()
 
-    app_shell("📈 Raport 30 dni")
+    app_shell("Raport 30 dni")
 
     u = current_user()
     df = workouts_last_30_days_counts(int(u["id"]))
@@ -1131,4 +1248,14 @@ if __name__ in {"__main__", "__mp_main__"}:
         workers=1,
         port=port,
         storage_secret=os.getenv("STORAGE_SECRET"),
+    )
+
+    app.on_connect(
+        lambda: print(
+            [
+                i[1]
+                for i in ui.context.client.environ["asgi.scope"]["headers"]
+                if i[0] == b"user-agent"
+            ]
+        )
     )
