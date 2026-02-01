@@ -1109,9 +1109,12 @@ def page_report():
 # -------------------------
 # Run
 # -------------------------
+
+port = int(os.getenv("PORT", "8000"))
 ui.run(
     title="ProofOfSweat",
-    reload=True,
-    port=8080,
-    storage_secret=os.getenv("STORAGE_SECRET", "dev-only-secret-change-me"),
+    host="0.0.0.0",
+    reload=False,
+    port=port,
+    storage_secret=os.getenv("STORAGE_SECRET"),
 )
