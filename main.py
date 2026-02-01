@@ -540,6 +540,22 @@ def app_shell(title: str, *, show_back: bool = False):
     ui.colors(primary=PINK, secondary=PANEL, accent=PINK)
     ui.query("body").style(f"background-color:{BG};")
 
+    ui.add_head_html(
+        """
+        <style>
+        /* MOBILE: ukryj tekst w przyciskach, zostaw ikonę */
+        @media (max-width: 640px) {
+        .mobile-icon-only .q-btn__content span:not(.q-icon) { display: none !important; }
+        .mobile-icon-only .q-btn__content .q-icon { margin: 0 !important; }
+        .mobile-icon-only { min-width: 44px; padding: 8px 10px; }
+        .mobile-icon-only .q-btn__content { gap: 0 !important; }
+        }
+
+        /* DESKTOP: bez zmian (teksty widoczne) - tu nie trzeba nic robić */
+        </style>
+        """
+    )
+
     with ui.header(elevated=True).classes("items-center justify-between"):
         with ui.row().classes("items-center"):
             if show_back:
@@ -557,14 +573,11 @@ def app_shell(title: str, *, show_back: bool = False):
                 "Powiadomienia",
                 icon="notifications",
                 on_click=lambda: ui.navigate.to("/notifications"),
-            ).props("flat").classes("text-white")
-            ui.button(
-                "Wyloguj",
-                icon="logout",
-                on_click=logout,
-            ).props(
-                "flat"
-            ).classes("text-white")
+            ).props("flat round").classes("text-white mobile-icon-only")
+
+            ui.button("Wyloguj", icon="logout", on_click=logout).props(
+                "flat round"
+            ).classes("text-white mobile-icon-only")
 
     # bottom nav for mobile
     if current_user():
@@ -574,21 +587,21 @@ def app_shell(title: str, *, show_back: bool = False):
             ):
                 ui.button(
                     "Feed", icon="dynamic_feed", on_click=lambda: ui.navigate.to("/")
-                ).props("flat")
+                ).props("flat round").classes("mobile-icon-only")
                 ui.button(
                     "Dodaj", icon="add", on_click=lambda: ui.navigate.to("/add")
-                ).props("flat")
+                ).props("flat round").classes("mobile-icon-only")
                 ui.button(
                     "Znajomi", icon="group", on_click=lambda: ui.navigate.to("/friends")
-                ).props("flat")
+                ).props("flat round").classes("mobile-icon-only")
                 ui.button(
                     "Raport",
                     icon="insights",
                     on_click=lambda: ui.navigate.to("/report"),
-                ).props("flat")
+                ).props("flat round").classes("mobile-icon-only")
                 ui.button(
                     "Profil", icon="person", on_click=lambda: ui.navigate.to("/profile")
-                ).props("flat")
+                ).props("flat round").classes("mobile-icon-only")
 
 
 def card():
