@@ -151,20 +151,19 @@ html, body {
 .apple-muted {
   color: var(--muted);
 }
-                 
+
 .q-header, .q-header * {
   color: var(--text) !important;
 }
-
 .q-header .q-btn,
 .q-header .q-icon {
   color: var(--primary) !important;
 }
-
-/* “Wyloguj” (z tekstem) jako subtelny pill */
 .q-header .q-btn .q-btn__content {
   font-weight: 600;
 }
+
+/* Linkcard */
 .apple-linkcard {
   display: block;
   width: 100%;
@@ -187,45 +186,105 @@ html, body {
   margin-top: 2px;
 }
 
-
-/* Dodatkowo: sam input/textarea (placeholder siedzi tutaj) */
+/* Inputs padding */
 .q-field__native,
-.q-field__input {
-  padding-left: 0 !important;   /* żeby nie dublować paddingu */
-}
-
-/* Jeżeli masz ikony prepend/append (np. kalendarz), lekko je odsuń */
-.q-field__marginal {
-  padding-left: 6px !important;
-  padding-right: 6px !important;
-}
-
-.q-field__control-container {
-  padding-left: 14px !important;
-  padding-right: 12px !important;
-}
-
-/* 2) QUASAR "placeholder" = label */
-.q-field__label {
-  padding-left: 14px !important;   /* przesuwa szary tekst w prawo */
-}
-
-/* 3) Gdy label "pływa" nad polem (po focus / gdy ma wartość) – żeby nie uciekał */
-.q-field--float .q-field__label {
-  padding-left: 14px !important;
-}
-
-/* 4) Jeśli gdzieś użyjesz prawdziwego placeholdera HTML */
+.q-field__input { padding-left: 0 !important; }
+.q-field__marginal { padding-left: 6px !important; padding-right: 6px !important; }
+.q-field__control-container { padding-left: 14px !important; padding-right: 12px !important; }
+.q-field__label { padding-left: 14px !important; }
+.q-field--float .q-field__label { padding-left: 14px !important; }
 .q-field__native::placeholder,
-.q-field__input::placeholder {
-  padding-left: 0 !important;      /* padding jest na containerze */
+.q-field__input::placeholder { padding-left: 0 !important; }
+
+/* =========================================================
+   NOTIFICATIONS (klucz: jeden scroll na .notif-list)
+   ========================================================= */
+
+/* 1) menu (q-menu) zawsze na środku (desktop + mobile) */
+.notif-menu.q-menu {
+  left: 50vw !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  max-width: calc(100vw - 24px) !important;
 }
-/* Ładny markdown w notyfikacjach */
+
+/* 2) karta menu (kontener) – rozmiar + brak scrolla w bok */
+.notif-menu-card {
+  width: 420px !important;                 /* desktop */
+  max-width: calc(100vw - 24px) !important;
+  margin: 0 auto !important;
+  padding: 10px !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 640px) {
+  .notif-menu-card {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    padding: 8px !important;
+  }
+}
+
+/* 3) tylko lista ma scroll pionowy */
+.notif-list {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  max-height: 420px;   /* i tak ustawiasz inline, ale tu też może zostać */
+  box-sizing: border-box !important;
+}
+@media (max-width: 640px) {
+  .notif-list { max-height: 60vh !important; gap: 8px !important; }
+}
+
+/* 4) karty: zero scrollowania wewnątrz */
+.notif-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+
+  /* najważniejsze: żadnego pionowego overflow */
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+}
+
+/* Quasar często dodaje wewnętrzne wrappery z overflow -> wyłączamy */
+.notif-card .q-card__section,
+.notif-card .q-card__actions,
+.notif-card .q-card__section--vert {
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+}
+
+/* Jeśli gdzieś jest QScrollArea (to daje te paski w każdej karcie) */
+.notif-card .q-scrollarea,
+.notif-card .q-scrollarea__container,
+.notif-card .q-scrollarea__content {
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+}
+
+/* Thumb/bary QScrollArea – chowamy, żeby nie było “paska” przy każdej karcie */
+.notif-card .q-scrollarea__thumb,
+.notif-card .q-scrollarea__bar {
+  display: none !important;
+}
+
+/* 5) markdown w notyfikacjach – zawijanie, bez pionowego scrolla */
 .notice-md {
   font-size: 14px;
   line-height: 1.35;
   color: rgba(26,26,26,.85);
+
   white-space: pre-line;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+
+  overflow-y: visible !important;
+  max-height: none !important;
 }
 
 .notice-md p { margin: 6px 0; }
@@ -240,10 +299,13 @@ html, body {
   background: rgba(142, 29, 74, 0.08);
 }
 
+/* pre: TYLKO poziomy scroll */
 .notice-md pre {
   padding: 10px 12px;
   border-radius: 14px;
-  overflow-x: auto;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  max-width: 100% !important;
   background: rgba(0,0,0,.04);
 }
 
@@ -259,44 +321,38 @@ html, body {
   text-decoration: none;
 }
 .notice-md a:hover { text-decoration: underline; }
-</style>
-                
-""",
-    shared=True,
-)
 
-ui.add_head_html(
-    """
-<style id="mobile_header_footer_icon_only_css">
 @media (max-width: 640px) {
+  .notif-card { padding: 8px !important; border-radius: 14px !important; }
+  .notice-md { font-size: 13px !important; line-height: 1.3 !important; }
+}
 
-  /* ukryj WSZYSTKO w treści buttona poza ikoną i badge */
-  .mobile-icon-only-area .q-btn .q-btn__content > :not(.q-icon):not(.q-badge) {
-    display: none !important;
+/* 6) akcje w menu notyfikacji na mobile */
+@media (max-width: 640px) {
+  .notif-action {
+    font-size: 12px !important;
+    padding: 2px 6px !important;
+    min-height: 30px !important;
+    line-height: 1.1 !important;
+    font-weight: 600;
+    color: var(--primary) !important;
   }
-
-  /* dla pewności: Quasar czasem używa tych klas */
-  .mobile-icon-only-area .q-btn .q-btn__label,
-  .mobile-icon-only-area .q-btn .q-btn__content-text,
-  .mobile-icon-only-area .q-btn .block {
-    display: none !important;
+  .notif-action .q-icon {
+    font-size: 16px !important;
+    margin-right: 4px !important;
   }
-
-  .mobile-icon-only-area .q-btn .q-btn__content {
-    gap: 0 !important;
-    justify-content: center;
-  }
-
-  .mobile-icon-only-area .q-btn {
-    min-width: 44px;
-    min-height: 44px;
-    padding: 8px 10px !important;
+  .notif-menu-card .q-btn { margin: 0 !important; }
+  .notif-actions-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
   }
 }
 </style>
 """,
     shared=True,
 )
+
 
 ui.add_head_html(
     """
@@ -393,6 +449,96 @@ def nav_button(label: str, icon: str, path: str):
         ui.tooltip(label)
 
 
+def notifications_dropdown(user_id: int, *, mobile: bool = False):
+    """Ikona dzwonka + dropdown z notyfikacjami (Facebook-style)."""
+
+    # wrapper, żeby badge mógł być absolute
+    with ui.element("div").classes("relative"):
+        with ui.button(icon="notifications").props("flat round") as bell_btn:
+            if not mobile:
+                ui.tooltip("Powiadomienia")
+
+            menu = (
+                ui.menu()
+                .props("auto-close=false anchor=top middle self=top middle")
+                .classes("notif-menu")
+            )
+
+            with menu:
+                with ui.card().classes("apple-card notif-menu-card").style(
+                    "width: 360px; max-width: calc(100vw - 24px); margin: 0 auto; "
+                    "padding: 10px; overflow-x: hidden;"
+                ):
+
+                    with ui.row().classes("w-full items-center justify-between"):
+                        ui.label("Powiadomienia").classes("font-bold")
+                        ui.button(icon="close", on_click=menu.close).props(
+                            "flat round dense"
+                        )
+
+                    with ui.row().classes("w-full notif-actions-row").style(
+                        "margin-top:6px;"
+                    ):
+                        ui.button(
+                            "Oznacz wszystkie jako przeczytane",
+                            icon="done_all",
+                            on_click=lambda: (
+                                database_service.mark_all_notifications_read(user_id),
+                                refresh(),
+                            ),
+                        ).props("flat dense no-caps").classes("notif-action")
+
+                        ui.button(
+                            "Odśwież",
+                            icon="refresh",
+                            on_click=lambda: refresh(),
+                        ).props("flat dense no-caps").classes("notif-action")
+
+                    container = (
+                        ui.column()
+                        .classes("w-full notif-list")
+                        .style(
+                            "margin-top:8px; max-height: 420px; overflow-y:auto; overflow-x:hidden; gap:10px;"
+                        )
+                    )
+
+    def refresh():
+        container.clear()
+
+        notes = notification_service.parse_notifications(user_id)
+        if not notes:
+            with container:
+                ui.label("Brak powiadomień.").classes("text-sm opacity-70")
+            return
+
+        with container:
+            for n in notes:
+                with ui.card().classes("notif-card relative").style(
+                    "width:100%; max-width:100%; box-sizing:border-box; "
+                    "border:1px solid rgba(140, 30, 75, 0.10); border-radius:16px; box-shadow:none; "
+                    "overflow: visible;"
+                ):
+                    ui.button(
+                        icon="delete",
+                        on_click=lambda nid=n["id"]: (
+                            database_service.delete_notification(user_id, nid),
+                            refresh(),
+                        ),
+                    ).props("flat round dense").classes("absolute top-2 right-2")
+
+                    ui.label(str(n["user_friendly_type"])).classes("font-bold text-sm")
+                    ui.label(str(n["user_friendly_created_at"])).classes(
+                        "text-xs opacity-70"
+                    )
+                    ui.markdown(str(n["message"])).classes("notice-md")
+
+    # odśwież po otwarciu menu
+    menu.on("show", lambda e: refresh())
+
+    # zwracamy bell_btn, żebyś mogła dołożyć badge obok
+    return bell_btn
+
+
 def app_shell(title: str, *, show_back: bool = False):
     ui.colors(primary=PRIMARY, secondary=PANEL, accent=PRIMARY)
     ui.query("body").style(f"background-color:{BG};")
@@ -407,34 +553,34 @@ def app_shell(title: str, *, show_back: bool = False):
 
         if user_service.current_user():
             u = user_service.current_user()
-            is_admin = (u.get("role") == "ADMIN")
+            is_admin = u.get("role") == "ADMIN"
 
             if is_admin:
-                ui.button("Panel admina", icon="admin_panel_settings",
-                        on_click=lambda: ui.navigate.to("/admin")
-                ).props("flat round").classes("gt-xs")
-
-                with ui.button(icon="admin_panel_settings",
-                            on_click=lambda: ui.navigate.to("/admin")
-                ).props("flat round").classes("lt-sm"):
-                    ui.tooltip("Panel admina")
-            cnt = database_service.unread_notifications_count(int(u["id"]))
-            with ui.element("div").classes("relative"):
                 ui.button(
-                    icon="notifications",
-                    on_click=lambda: ui.navigate.to("/notifications"),
+                    "Panel admina",
+                    icon="admin_panel_settings",
+                    on_click=lambda: ui.navigate.to("/admin"),
                 ).props("flat round").classes("gt-xs")
 
                 with ui.button(
-                    icon="notifications",
-                    on_click=lambda: ui.navigate.to("/notifications"),
+                    icon="admin_panel_settings",
+                    on_click=lambda: ui.navigate.to("/admin"),
                 ).props("flat round").classes("lt-sm"):
-                    ui.tooltip("🔔")
+                    ui.tooltip("Panel admina")
+            cnt = database_service.unread_notifications_count(int(u["id"]))
 
-                if cnt > 0:
-                    ui.badge(str(cnt)).classes("absolute -top-1 -right-1").style(
-                        f"background:{PRIMARY_SOFT} !important; color:{BG} !important;"
-                    )
+            # desktop
+            bell_btn = notifications_dropdown(int(u["id"]), mobile=False)
+            bell_btn.classes("gt-xs")
+
+            # mobile
+            bell_btn_m = notifications_dropdown(int(u["id"]), mobile=True)
+            bell_btn_m.classes("lt-sm")
+
+            if cnt > 0:
+                ui.badge(str(cnt)).classes("absolute -top-1 -right-1").style(
+                    f"background:{PRIMARY_SOFT} !important; color:{BG} !important;"
+                )
 
             ui.button("Wyloguj", icon="logout", on_click=user_service.logout).props(
                 "flat round"
@@ -474,6 +620,7 @@ def center_column():
 # Pages
 # -------------------------
 
+
 @ui.page("/admin")
 def page_admin():
     if not user_service.require_login():
@@ -489,20 +636,29 @@ def page_admin():
 
     with center_column():
         with card():
-            ui.label("Wyślij powiadomienie do wszystkich").classes("text-base font-bold")
+            ui.label("Wyślij powiadomienie do wszystkich").classes(
+                "text-base font-bold"
+            )
             msg = ui.textarea("Treść").classes("w-full")
-            type_ = ui.input("Typ (opcjonalnie)", value="admin_broadcast").classes("w-full")
+            type_ = ui.input("Typ (opcjonalnie)", value="admin_broadcast").classes(
+                "w-full"
+            )
             status = ui.label("").classes("text-sm")
 
             def send():
-                ok, txt = database_service.broadcast_notification(type_=type_.value, message=msg.value)
+                ok, txt = database_service.broadcast_notification(
+                    type_=type_.value, message=msg.value
+                )
                 status.set_text(txt)
                 status.style("color:#0b6b2d;" if ok else "color:#b00020;")
                 if ok:
                     msg.value = ""
                     ui.notify("Wysłano ✅", type="positive")
 
-            ui.button("Wyślij", icon="send", on_click=send).classes("w-full apple-primary").props("unelevated")
+            ui.button("Wyślij", icon="send", on_click=send).classes(
+                "w-full apple-primary"
+            ).props("unelevated")
+
 
 @ui.page("/login")
 def page_login():
@@ -643,43 +799,43 @@ def page_feed():
                                 )
 
 
-@ui.page("/notifications")
-def page_notifications():
-    if not user_service.require_login():
-        return
-    user_service.refresh_user_in_session()
-    app_shell("Powiadomienia")
+# @ui.page("/notifications")
+# def page_notifications():
+#     if not user_service.require_login():
+#         return
+#     user_service.refresh_user_in_session()
+#     app_shell("Powiadomienia")
 
-    u = user_service.current_user()
-    with center_column():
-        ui.button(
-            "Oznacz wszystkie jako przeczytane",
-            on_click=lambda: (
-                database_service.mark_all_notifications_read(int(u["id"])),
-                ui.navigate.to("/notifications"),
-            ),
-        ).classes("w-full").props("unelevated")
+#     u = user_service.current_user()
+#     with center_column():
+#         ui.button(
+#             "Oznacz wszystkie jako przeczytane",
+#             on_click=lambda: (
+#                 database_service.mark_all_notifications_read(int(u["id"])),
+#                 ui.navigate.to("/notifications"),
+#             ),
+#         ).classes("w-full").props("unelevated")
 
-        notes = notification_service.parse_notifications(int(u["id"]))
-        if not notes:
-            with card():
-                ui.label("Brak powiadomień.")
-            return
+#         notes = notification_service.parse_notifications(int(u["id"]))
+#         if not notes:
+#             with card():
+#                 ui.label("Brak powiadomień.")
+#             return
 
-        for n in notes:
-            with card().classes("relative"):
-                ui.button(
-                    icon="delete",
-                    on_click=lambda nid=n["id"]: (
-                        database_service.delete_notification(int(u["id"]), nid),
-                        ui.navigate.to("/notifications"),
-                    ),
-                ).props("flat round dense").classes("absolute top-2 right-2")
-                ui.label(f"{n['user_friendly_type']}").classes("font-bold")
-                ui.label(str(n["user_friendly_created_at"])).classes(
-                    "text-xs opacity-70"
-                )
-                ui.markdown(str(n["message"])).classes("notice-md")
+#         for n in notes:
+#             with card().classes("relative"):
+#                 ui.button(
+#                     icon="delete",
+#                     on_click=lambda nid=n["id"]: (
+#                         database_service.delete_notification(int(u["id"]), nid),
+#                         ui.navigate.to("/notifications"),
+#                     ),
+#                 ).props("flat round dense").classes("absolute top-2 right-2")
+#                 ui.label(f"{n['user_friendly_type']}").classes("font-bold")
+#                 ui.label(str(n["user_friendly_created_at"])).classes(
+#                     "text-xs opacity-70"
+#                 )
+#                 ui.markdown(str(n["message"])).classes("notice-md")
 
 
 @ui.page("/add")
