@@ -1,7 +1,9 @@
 from passlib.hash import bcrypt_sha256
 from sqlalchemy import text
 
-from db import get_session
+from services.db_service import DatabaseService
+
+database_service = DatabaseService()
 
 
 def hash_password(password: str) -> str:
@@ -32,7 +34,7 @@ def create_user(nick: str, email: str, password: str) -> tuple[bool, str]:
     pwd_hash = hash_password(password)
 
     try:
-        with get_session() as s:
+        with database_service.get_session() as s:
             s.execute(
                 text(
                     "INSERT INTO users(nick, email, password_hash) VALUES(:nick, :email, :ph)"
@@ -53,7 +55,7 @@ def login(email: str, password: str):
     email = (email or "").strip().lower()
     password = password or ""
 
-    with get_session() as s:
+    with database_service.get_session() as s:
         row = s.execute(
             text("SELECT * FROM users WHERE email = :email"),
             {"email": email},
@@ -68,10 +70,4 @@ def login(email: str, password: str):
     return user
 
 
-def get_user_by_id(user_id: int):
-    with get_session() as s:
-        row = s.execute(
-            text("SELECT * FROM users WHERE id = :id"),
-            {"id": user_id},
-        ).fetchone()
-    return dict(row._mapping) if row else None
+

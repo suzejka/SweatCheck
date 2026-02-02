@@ -7,25 +7,50 @@ import time
 from typing import Optional
 
 import matplotlib.pyplot as plt
-import pandas as pd
 from dotenv import load_dotenv
 from nicegui import app, ui
-from sqlalchemy import text
 
-from auth import create_user, get_user_by_id
+from auth import create_user
 from auth import login as auth_login
-from db import get_session, init_db
+from services.db_service import DatabaseService
+from services.notification_service import NotificationService
 from storage import get_signed_url, save_image
 from pathlib import Path
+from services.user_service import UserService
+from utils.helpers import domain
+from datetime import datetime, date
+
 
 load_dotenv()
+
+user_service = UserService(app, ui)
+database_service = DatabaseService()
+notification_service = NotificationService()
+
 # -------------------------
 # Init
 # -------------------------
-app.add_static_files('/static', str(Path(__file__).parent / 'static'))
-init_db()
+app.add_static_files("/static", str(Path(__file__).parent / "static"))
+database_service.init_db()
 
-ui.add_head_html("""
+# PRIMARY = "#A11D4E"
+# BG = "#FFF6FA"
+# PANEL = "#FFE3EF"
+
+
+PRIMARY = "#8E1D4A"  # bordo / wine
+PRIMARY_SOFT = "#B03A67"
+
+BG = "#FAF7F9"  # bardzo jasny różowy off-white
+PANEL = "#FFFFFF"  # powierzchnie kart
+
+TEXT = "#1A1A1A"
+MUTED = "#6B5A63"
+
+BORDER = "rgba(140, 30, 75, 0.12)"
+
+ui.add_head_html(
+    """
 <script>
 (function() {
   function setFavicon(url) {
@@ -44,8 +69,163 @@ ui.add_head_html("""
   setFavicon('/static/favicon.png');
 })();
 </script>
-""", shared=True)
+""",
+    shared=True,
+)
 
+ui.add_head_html(
+    """
+<style>
+:root {
+  --bg: #FAF7F9;
+  --surface: #FFFFFF;
+  --text: #1A1A1A;
+  --muted: #6B5A63;
+
+  --primary: #8E1D4A;
+  --primary-soft: #B03A67;
+
+  --border: rgba(140, 30, 75, 0.12);
+
+  --shadow-soft: 0 8px 24px rgba(0,0,0,.06);
+  --radius-lg: 22px;
+  --radius-md: 16px;
+}
+
+html, body {
+  background: var(--bg) !important;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont,
+               "SF Pro Display", "SF Pro Text",
+               "Segoe UI", Roboto, Arial;
+}
+
+/* Header: iOS glass */
+.q-header {
+  background: rgba(255,255,255,.75) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Footer glass */
+.q-footer {
+  background: rgba(255,255,255,.78) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+}
+
+/* Apple card */
+.apple-card {
+  background: rgba(255,255,255,.88) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-soft);
+}
+
+/* Inputs */
+.q-field__control {
+  border-radius: var(--radius-md) !important;
+}
+
+/* Buttons = pill */
+.q-btn {
+  border-radius: 999px !important;
+  font-weight: 600;
+}
+
+/* Bordo primary button */
+.apple-primary {
+  background: var(--primary) !important;
+  color: white !important;
+  box-shadow: 0 10px 22px rgba(142, 29, 74, 0.22);
+}
+
+/* Subtle secondary */
+.apple-secondary {
+  background: rgba(142, 29, 74, 0.08) !important;
+  color: var(--primary) !important;
+}
+
+/* Muted helper text */
+.apple-muted {
+  color: var(--muted);
+}
+                 
+.q-header, .q-header * {
+  color: var(--text) !important;
+}
+
+.q-header .q-btn,
+.q-header .q-icon {
+  color: var(--primary) !important;
+}
+
+/* “Wyloguj” (z tekstem) jako subtelny pill */
+.q-header .q-btn .q-btn__content {
+  font-weight: 600;
+}
+.apple-linkcard {
+  display: block;
+  width: 100%;
+  text-decoration: none !important;
+  color: var(--text) !important;
+  background: rgba(255,255,255,.78);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.05);
+  padding: 12px 14px;
+  transition: transform .08s ease, box-shadow .08s ease;
+}
+.apple-linkcard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(0,0,0,.07);
+}
+.apple-linkcard .sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+
+/* Dodatkowo: sam input/textarea (placeholder siedzi tutaj) */
+.q-field__native,
+.q-field__input {
+  padding-left: 0 !important;   /* żeby nie dublować paddingu */
+}
+
+/* Jeżeli masz ikony prepend/append (np. kalendarz), lekko je odsuń */
+.q-field__marginal {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+}
+
+.q-field__control-container {
+  padding-left: 14px !important;
+  padding-right: 12px !important;
+}
+
+/* 2) QUASAR "placeholder" = label */
+.q-field__label {
+  padding-left: 14px !important;   /* przesuwa szary tekst w prawo */
+}
+
+/* 3) Gdy label "pływa" nad polem (po focus / gdy ma wartość) – żeby nie uciekał */
+.q-field--float .q-field__label {
+  padding-left: 14px !important;
+}
+
+/* 4) Jeśli gdzieś użyjesz prawdziwego placeholdera HTML */
+.q-field__native::placeholder,
+.q-field__input::placeholder {
+  padding-left: 0 !important;      /* padding jest na containerze */
+}
+</style>
+                
+""",
+    shared=True,
+)
 
 ui.add_head_html(
     """
@@ -80,42 +260,47 @@ ui.add_head_html(
     shared=True,
 )
 
+ui.add_head_html("""
+<link rel="stylesheet" href="https://unpkg.com/cropperjs@1.6.2/dist/cropper.min.css">
+<script src="https://unpkg.com/cropperjs@1.6.2/dist/cropper.min.js"></script>
 
-PINK = "#A11D4E"  # bordo
-BG = "#FFF6FA"  # jasny róż
-PANEL = "#FFE3EF"  # pudrowy róż
+<style>
+/* Okrągły podgląd jak avatar */
+#avatar_crop_preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,.08);
+  box-shadow: 0 6px 18px rgba(0,0,0,.06);
+}
+                 
+#avatar_crop_img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Żeby overlay był widoczny */
+.cropper-container { max-width: 100% !important; }
+
+/* Zmniejsz “grubość” uploadu w dialogu */
+.avatar-upload .q-uploader {
+  border-radius: 18px !important;
+}
+.avatar-upload .q-uploader__header {
+  min-height: 44px !important;
+  padding: 8px 10px !important;
+}
+.avatar-upload .q-uploader__list {
+  display: none !important; /* ukrywa wielką listę postępu */
+}
+</style>
+""", shared=True)
 
 
 def to_upload_url(file_path: str) -> str:
     # file_path to object_path w supabase bucket
     return get_signed_url_cached(file_path, expires_seconds=3600)
-
-
-# -------------------------
-# Session helpers
-# -------------------------
-def current_user():
-    return app.storage.user.get("user")
-
-
-def set_user(user: dict | None):
-    app.storage.user["user"] = user
-
-
-def require_login() -> bool:
-    if not current_user():
-        ui.navigate.to("/login")
-        return False
-    return True
-
-
-def refresh_user_in_session():
-    u = current_user()
-    if not u:
-        return
-    fresh = get_user_by_id(u["id"])
-    if fresh:
-        set_user(fresh)
 
 
 SIGNED_URL_TTL_SECONDS = 60 * 10  # 10 minut cache; signed url możesz robić np. na 1h
@@ -154,494 +339,6 @@ def get_signed_url_cached(object_path: str, *, expires_seconds: int = 3600) -> s
     return url
 
 
-# -------------------------
-# DB helpers
-# -------------------------
-def list_friends(user_id: int):
-    with get_session() as s:
-        rows = s.execute(
-            text(
-                """
-            SELECT u.* FROM friends f
-            JOIN users u ON u.id = f.friend_id
-            WHERE f.user_id = :uid
-            ORDER BY u.nick
-        """
-            ),
-            {"uid": user_id},
-        ).fetchall()
-    return [dict(r._mapping) for r in rows]
-
-
-def update_nick(user_id: int, new_nick: str) -> tuple[bool, str]:
-    new_nick = (new_nick or "").strip()
-    if len(new_nick) < 2:
-        return False, "Nick musi mieć min. 2 znaki."
-
-    try:
-        with get_session() as s:
-            s.execute(
-                text(
-                    """
-                UPDATE users SET nick = :n WHERE id = :id
-            """
-                ),
-                {"n": new_nick, "id": user_id},
-            )
-        return True, "Zmieniono nick."
-    except Exception as e:
-        msg = str(e).lower()
-        if "users_nick_key" in msg or ("unique" in msg and "nick" in msg):
-            return False, "Ten nick jest już zajęty."
-        return False, "Nie udało się zmienić nicku."
-
-
-def send_friend_request(requester_id: int, addressee_email: str) -> tuple[bool, str]:
-    addressee_email = (addressee_email or "").strip().lower()
-    if not addressee_email:
-        return False, "Podaj email."
-
-    with get_session() as s:
-        addressee = s.execute(
-            text("SELECT id, nick FROM users WHERE email = :e"),
-            {"e": addressee_email},
-        ).fetchone()
-
-        if not addressee:
-            return False, "Nie znaleziono użytkownika o takim emailu."
-
-        addressee_id = int(addressee._mapping["id"])
-        addressee_nick = addressee._mapping["nick"]
-
-        if addressee_id == requester_id:
-            return False, "Nie możesz zaprosić siebie."
-
-        # czy już są znajomymi?
-        already = s.execute(
-            text(
-                """
-            SELECT 1 FROM friends WHERE user_id=:u AND friend_id=:f
-        """
-            ),
-            {"u": requester_id, "f": addressee_id},
-        ).fetchone()
-        if already:
-            return False, "Jesteście już znajomymi."
-
-        # stwórz/odśwież pending
-        s.execute(
-            text(
-                """
-            INSERT INTO friend_requests(requester_id, addressee_id, status)
-            VALUES (:r, :a, 'pending')
-            ON CONFLICT (requester_id, addressee_id)
-            DO UPDATE SET status='pending', created_at=CURRENT_TIMESTAMP, responded_at=NULL
-        """
-            ),
-            {"r": requester_id, "a": addressee_id},
-        )
-
-        # powiadomienie dla addressee
-        s.execute(
-            text(
-                """
-            INSERT INTO notifications(user_id, type, payload)
-            VALUES (:uid, 'friend_request', jsonb_build_object('from_user_id', :from_id))
-        """
-            ),
-            {"uid": addressee_id, "from_id": requester_id},
-        )
-
-    return True, f"Wysłano zaproszenie do: {addressee_nick}"
-
-
-def list_incoming_requests(user_id: int):
-    with get_session() as s:
-        rows = s.execute(
-            text(
-                """
-            SELECT fr.id, fr.created_at, u.id as from_id, u.nick, u.email, u.avatar_path
-            FROM friend_requests fr
-            JOIN users u ON u.id = fr.requester_id
-            WHERE fr.addressee_id = :uid AND fr.status = 'pending'
-            ORDER BY fr.created_at DESC
-        """
-            ),
-            {"uid": user_id},
-        ).fetchall()
-    return [dict(r._mapping) for r in rows]
-
-
-def list_outgoing_requests(user_id: int):
-    with get_session() as s:
-        rows = s.execute(
-            text(
-                """
-            SELECT fr.id, fr.created_at, u.id as to_id, u.nick, u.email, u.avatar_path
-            FROM friend_requests fr
-            JOIN users u ON u.id = fr.addressee_id
-            WHERE fr.requester_id = :uid AND fr.status = 'pending'
-            ORDER BY fr.created_at DESC
-        """
-            ),
-            {"uid": user_id},
-        ).fetchall()
-    return [dict(r._mapping) for r in rows]
-
-
-def accept_request(user_id: int, request_id: int) -> tuple[bool, str]:
-    with get_session() as s:
-        req = s.execute(
-            text(
-                """
-            SELECT requester_id, addressee_id, status
-            FROM friend_requests
-            WHERE id=:id
-        """
-            ),
-            {"id": request_id},
-        ).fetchone()
-
-        if not req:
-            return False, "Nie znaleziono zaproszenia."
-        if int(req._mapping["addressee_id"]) != user_id:
-            return False, "To nie jest Twoje zaproszenie."
-        if req._mapping["status"] != "pending":
-            return False, "To zaproszenie nie jest już aktywne."
-
-        requester_id = int(req._mapping["requester_id"])
-
-        # friends (dwukierunkowo)
-        s.execute(
-            text(
-                """
-            INSERT INTO friends(user_id, friend_id) VALUES (:u,:f) ON CONFLICT DO NOTHING
-        """
-            ),
-            {"u": user_id, "f": requester_id},
-        )
-        s.execute(
-            text(
-                """
-            INSERT INTO friends(user_id, friend_id) VALUES (:u,:f) ON CONFLICT DO NOTHING
-        """
-            ),
-            {"u": requester_id, "f": user_id},
-        )
-
-        # status request
-        s.execute(
-            text(
-                """
-            UPDATE friend_requests
-            SET status='accepted', responded_at=CURRENT_TIMESTAMP
-            WHERE id=:id
-        """
-            ),
-            {"id": request_id},
-        )
-
-        # powiadomienie dla requester
-        s.execute(
-            text(
-                """
-            INSERT INTO notifications(user_id, type, payload)
-            VALUES (:uid, 'friend_accept', jsonb_build_object('by_user_id', :by))
-        """
-            ),
-            {"uid": requester_id, "by": user_id},
-        )
-
-    return True, "Zaproszenie zaakceptowane."
-
-
-def decline_request(user_id: int, request_id: int) -> tuple[bool, str]:
-    with get_session() as s:
-        req = s.execute(
-            text(
-                """
-            SELECT requester_id, addressee_id, status
-            FROM friend_requests
-            WHERE id=:id
-        """
-            ),
-            {"id": request_id},
-        ).fetchone()
-
-        if not req:
-            return False, "Nie znaleziono zaproszenia."
-        if int(req._mapping["addressee_id"]) != user_id:
-            return False, "To nie jest Twoje zaproszenie."
-        if req._mapping["status"] != "pending":
-            return False, "To zaproszenie nie jest już aktywne."
-
-        requester_id = int(req._mapping["requester_id"])
-
-        s.execute(
-            text(
-                """
-            UPDATE friend_requests
-            SET status='declined', responded_at=CURRENT_TIMESTAMP
-            WHERE id=:id
-        """
-            ),
-            {"id": request_id},
-        )
-
-        s.execute(
-            text(
-                """
-            INSERT INTO notifications(user_id, type, payload)
-            VALUES (:uid, 'friend_decline', jsonb_build_object('by_user_id', :by))
-        """
-            ),
-            {"uid": requester_id, "by": user_id},
-        )
-
-    return True, "Zaproszenie odrzucone."
-
-
-def remove_friend(user_id: int, friend_id: int) -> tuple[bool, str]:
-    with get_session() as s:
-        s.execute(
-            text("DELETE FROM friends WHERE user_id=:u AND friend_id=:f"),
-            {"u": user_id, "f": friend_id},
-        )
-        s.execute(
-            text("DELETE FROM friends WHERE user_id=:u AND friend_id=:f"),
-            {"u": friend_id, "f": user_id},
-        )
-    return True, "Usunięto znajomą."
-
-
-def unread_notifications_count(user_id: int) -> int:
-    with get_session() as s:
-        row = s.execute(
-            text(
-                """
-            SELECT COUNT(*)::int AS c FROM notifications
-            WHERE user_id=:u AND is_read=false
-        """
-            ),
-            {"u": user_id},
-        ).fetchone()
-    return int(row._mapping["c"]) if row else 0
-
-
-def list_notifications(user_id: int, limit: int = 30):
-    with get_session() as s:
-        rows = s.execute(
-            text(
-                """
-            SELECT id, type, payload, is_read, created_at
-            FROM notifications
-            WHERE user_id=:u
-            ORDER BY created_at DESC
-            LIMIT :lim
-        """
-            ),
-            {"u": user_id, "lim": limit},
-        ).fetchall()
-    return [dict(r._mapping) for r in rows]
-
-
-def parse_notifications(user_id: int):
-    notifications = list_notifications(user_id)
-    parsed = []
-    for n in notifications:
-        p = dict(n)  # kopiuj
-        p_payload = p.get("payload") or {}
-        if p["type"] == "friend_request":
-            from_user_id = p_payload.get("from_user_id")
-            from_user = get_user_by_id(from_user_id) if from_user_id else None
-            p["message"] = (
-                f"Nowe zaproszenie od {from_user['nick']}"
-                if from_user
-                else "Nowe zaproszenie"
-            )
-            p["user_friendly_type"] = "Zaproszenie do znajomych"
-            p["user_friendly_created_at"] = (
-                p["created_at"].strftime("%Y-%m-%d %H:%M") if p["created_at"] else ""
-            )
-        elif p["type"] == "friend_accept":
-            by_user_id = p_payload.get("by_user_id")
-            by_user = get_user_by_id(by_user_id) if by_user_id else None
-            p["message"] = (
-                f"{by_user['nick']} zaakceptował(a) Twoje zaproszenie"
-                if by_user
-                else "Ktoś zaakceptował(a) Twoje zaproszenie"
-            )
-            p["user_friendly_type"] = "Zaakceptowano zaproszenie"
-            p["user_friendly_created_at"] = (
-                p["created_at"].strftime("%Y-%m-%d %H:%M") if p["created_at"] else ""
-            )
-        elif p["type"] == "friend_decline":
-            by_user_id = p_payload.get("by_user_id")
-            by_user = get_user_by_id(by_user_id) if by_user_id else None
-            p["message"] = (
-                f"{by_user['nick']} odrzucił(a) Twoje zaproszenie"
-                if by_user
-                else "Ktoś odrzucił(a) Twoje zaproszenie"
-            )
-            p["user_friendly_type"] = "Odrzucono zaproszenie"
-            p["user_friendly_created_at"] = (
-                p["created_at"].strftime("%Y-%m-%d %H:%M") if p["created_at"] else ""
-            )
-        else:
-            p["message"] = "Nieznany typ powiadomienia"
-        parsed.append(p)
-    return parsed
-
-
-def mark_all_notifications_read(user_id: int):
-    with get_session() as s:
-        s.execute(
-            text(
-                """
-            UPDATE notifications SET is_read=true WHERE user_id=:u AND is_read=false
-        """
-            ),
-            {"u": user_id},
-        )
-
-
-def add_friend_by_email(user_id: int, friend_email: str) -> tuple[bool, str]:
-    friend_email = (friend_email or "").strip().lower()
-    if not friend_email:
-        return False, "Podaj email."
-
-    with get_session() as s:
-        friend = s.execute(
-            text("SELECT * FROM users WHERE email = :email"),
-            {"email": friend_email},
-        ).fetchone()
-
-        if not friend:
-            return False, "Nie znaleziono użytkownika o takim emailu."
-
-        fid = int(friend._mapping["id"])
-        fnick = friend._mapping["nick"]
-
-        if fid == user_id:
-            return False, "Nie możesz dodać siebie."
-
-        # MVP: relacja dwukierunkowa, bez zaproszeń
-        s.execute(
-            text(
-                "INSERT INTO friends(user_id, friend_id) VALUES(:u, :f) ON CONFLICT DO NOTHING"
-            ),
-            {"u": user_id, "f": fid},
-        )
-        s.execute(
-            text(
-                "INSERT INTO friends(user_id, friend_id) VALUES(:u, :f) ON CONFLICT DO NOTHING"
-            ),
-            {"u": fid, "f": user_id},
-        )
-
-    return True, f"Dodano: {fnick}"
-
-
-def update_avatar(user_id: int, avatar_path: str):
-    with get_session() as s:
-        s.execute(
-            text("UPDATE users SET avatar_path = :p WHERE id = :id"),
-            {"p": avatar_path, "id": user_id},
-        )
-
-
-def create_workout(
-    user_id: int,
-    title: str,
-    calories: Optional[int],
-    fatigue: int,
-    photo_path: Optional[str],
-    video_url: Optional[str],
-) -> tuple[bool, str]:
-    title = (title or "").strip()
-    video_url = (video_url or "").strip() or None
-
-    if not title:
-        return False, "Podaj nazwę treningu."
-    if fatigue < 1 or fatigue > 10:
-        return False, "Zmęczenie musi być w zakresie 1–10."
-    if video_url and not (
-        video_url.startswith("http://") or video_url.startswith("https://")
-    ):
-        return False, "Link do wideo musi zaczynać się od http:// lub https://"
-
-    with get_session() as s:
-        s.execute(
-            text(
-                """
-            INSERT INTO workouts(user_id, title, calories, fatigue, photo_path, video_url)
-            VALUES(:uid, :t, :c, :f, :p, :v)
-        """
-            ),
-            {
-                "uid": user_id,
-                "t": title,
-                "c": calories,
-                "f": fatigue,
-                "p": photo_path,
-                "v": video_url,
-            },
-        )
-
-    return True, "Dodano trening 💪"
-
-
-def get_feed_workouts(user_id: int):
-    with get_session() as s:
-        rows = s.execute(
-            text(
-                """
-            SELECT w.*, u.nick, u.avatar_path
-            FROM workouts w
-            JOIN users u ON u.id = w.user_id
-            WHERE w.user_id = :uid
-               OR w.user_id IN (SELECT friend_id FROM friends WHERE user_id = :uid)
-            ORDER BY w.created_at DESC
-            LIMIT 200
-        """
-            ),
-            {"uid": user_id},
-        ).fetchall()
-    return [dict(r._mapping) for r in rows]
-
-
-def workouts_last_30_days_counts(user_id: int) -> pd.DataFrame:
-    with get_session() as s:
-        rows = s.execute(
-            text(
-                """
-            SELECT u.nick, COUNT(*)::int as cnt
-            FROM workouts w
-            JOIN users u ON u.id = w.user_id
-            WHERE (w.user_id = :uid OR w.user_id IN (SELECT friend_id FROM friends WHERE user_id = :uid))
-              AND w.created_at >= (NOW() - INTERVAL '30 days')
-            GROUP BY u.nick
-            ORDER BY cnt DESC, u.nick ASC
-        """
-            ),
-            {"uid": user_id},
-        ).fetchall()
-
-    if not rows:
-        return pd.DataFrame(columns=["nick", "cnt"])
-    return pd.DataFrame([dict(r._mapping) for r in rows])
-
-
-# -------------------------
-# UI helpers (mobile-ish)
-# -------------------------
-
-
-def logout():
-    app.storage.user.clear()  # czyści całą sesję użytkownika
-    ui.navigate.to("/login")  # przekierowanie na login
-
-
 def nav_button(label: str, icon: str, path: str):
     # desktop/tablet
     ui.button(label, icon=icon, on_click=lambda: ui.navigate.to(path)).props(
@@ -656,7 +353,7 @@ def nav_button(label: str, icon: str, path: str):
 
 
 def app_shell(title: str, *, show_back: bool = False):
-    ui.colors(primary=PINK, secondary=PANEL, accent=PINK)
+    ui.colors(primary=PRIMARY, secondary=PANEL, accent=PRIMARY)
     ui.query("body").style(f"background-color:{BG};")
 
     with ui.header(elevated=True).classes("items-center justify-between"):
@@ -665,39 +362,39 @@ def app_shell(title: str, *, show_back: bool = False):
                 ui.button(
                     icon="arrow_back", on_click=lambda: ui.navigate.to("/")
                 ).props("flat round")
-            ui.label(title).classes("text-lg font-bold")
+            ui.image("/static/favicon.png").style("height:40px; width:40px;")
 
-        if current_user():
-            u = current_user()
-            cnt = unread_notifications_count(int(u["id"]))
+        if user_service.current_user():
+            u = user_service.current_user()
+            cnt = database_service.unread_notifications_count(int(u["id"]))
             with ui.element("div").classes("relative"):
                 ui.button(
                     icon="notifications",
                     on_click=lambda: ui.navigate.to("/notifications"),
-                ).props("flat round").classes("gt-xs text-white")
+                ).props("flat round").classes("gt-xs")
 
                 with ui.button(
                     icon="notifications",
                     on_click=lambda: ui.navigate.to("/notifications"),
-                ).props("flat round").classes("lt-sm text-white"):
+                ).props("flat round").classes("lt-sm"):
                     ui.tooltip("🔔")
 
                 if cnt > 0:
                     ui.badge(str(cnt)).classes("absolute -top-1 -right-1").style(
-                        f"background:white !important; color:{PINK} !important;"
+                        f"background:{PRIMARY_SOFT} !important; color:{BG} !important;"
                     )
 
-            ui.button("Wyloguj", icon="logout", on_click=logout).props(
+            ui.button("Wyloguj", icon="logout", on_click=user_service.logout).props(
                 "flat round"
-            ).classes("gt-xs text-white")
+            ).classes("gt-xs")
 
-            with ui.button(icon="logout", on_click=logout).props("flat round").classes(
-                "lt-sm text-white"
+            with ui.button(icon="logout", on_click=user_service.logout).props("flat round").classes(
+                "lt-sm"
             ):
                 ui.tooltip("Wyloguj")
 
     # bottom nav for mobile
-    if current_user():
+    if user_service.current_user():
         with ui.footer().classes("w-full"):
             with ui.row().classes("w-full justify-around").style(
                 f"background:{PANEL}; padding:10px;"
@@ -710,20 +407,14 @@ def app_shell(title: str, *, show_back: bool = False):
 
 
 def card():
-    return (
-        ui.card()
-        .classes("w-full")
-        .style(
-            "background:rgba(255,255,255,0.75); border:1px solid rgba(161,29,78,0.18); border-radius:18px;"
-        )
-    )
+    return ui.card().classes("w-full apple-card")
 
 
 def center_column():
     return (
         ui.column()
         .classes("w-full items-stretch")
-        .style("max-width:720px; margin:0 auto; padding: 12px;")
+        .style("max-width:720px; margin:0 auto; padding:18px;")
     )
 
 
@@ -746,7 +437,7 @@ def page_login():
             def do_login():
                 user = auth_login(email.value, pwd.value)
                 if user:
-                    set_user(user)
+                    user_service.set_user(user)
                     ui.navigate.to("/")
                 else:
                     msg.set_text("Błędny email lub hasło.")
@@ -779,14 +470,14 @@ def page_login():
 
 @ui.page("/")
 def page_feed():
-    if not require_login():
+    if not user_service.require_login():
         return
-    refresh_user_in_session()
+    user_service.refresh_user_in_session()
 
     app_shell("Tablica")
 
-    u = current_user()
-    workouts = get_feed_workouts(int(u["id"]))
+    u = user_service.current_user()
+    workouts = database_service.get_feed_workouts(int(u["id"]))
 
     with center_column():
         if not workouts:
@@ -806,18 +497,43 @@ def page_feed():
 
                             with ui.column().classes("gap-0"):
                                 ui.label(f"{w['nick']} — {w['title']}").classes(
-                                    "font-bold"
+                                    "text-base font-semibold"
                                 )
                                 # created_at może być datetime lub string - normalizujemy do tekstu
-                                ca = w["created_at"]
-                                ui.label(str(ca)).classes("text-xs opacity-70")
+                                dt = (w.get("performed_at") or w.get("created_at"))
+                                ts = dt.strftime("%Y-%m-%d %H:%M") if dt else ""
+                                ui.label(ts).classes("text-sm apple-muted")
 
-                        ui.chip(f"Zmęczenie: {w['fatigue']}/10").style(
-                            f"background:{PANEL}; color:#2A0A16;"
-                        )
+                        with ui.row().classes("items-center"):
+                            ui.chip(f"Zmęczenie: {w['fatigue']}/10").style(
+                                f"background:{PANEL}; color:{BG};"
+                            )
+
+                            if int(w.get("user_id", -1)) == int(u["id"]):
+                                ui.button(
+                                    icon="edit",
+                                    on_click=lambda wid=int(w["id"]): ui.navigate.to(
+                                        f"/workout/{wid}/edit"
+                                    ),
+                                ).props("flat round dense")
+
+                                ui.button(
+                                    icon="delete",
+                                    on_click=lambda wid=int(w["id"]): (
+                                        database_service.delete_workout(
+                                            wid, int(u["id"])
+                                        ),
+                                        ui.navigate.to("/"),
+                                    ),
+                                ).props("flat round dense")
 
                     if w.get("calories") is not None:
-                        ui.label(f"🔥 {w['calories']} kcal").classes("text-sm")
+                        ui.label(f"🔥 {w['calories']} kcal").classes(
+                            "text-sm apple-muted italic"
+                        )
+
+                    if w.get("comment"):
+                        ui.label(f"💬 {w['comment']}").classes("text-sm opacity-90")
 
                     if w.get("photo_path"):
                         ui.image(to_upload_url(w["photo_path"])).classes(
@@ -825,54 +541,34 @@ def page_feed():
                         )
 
                     if w.get("video_url"):
-                        ui.link("🎬 Link do filmiku", w["video_url"]).classes("text-sm")
-
-
-def delete_notification(user_id: int, notification_id: int) -> tuple[bool, str]:
-    with get_session() as s:
-        note = s.execute(
-            text(
-                """
-            SELECT id FROM notifications
-            WHERE id=:nid AND user_id=:uid
-        """
-            ),
-            {"nid": notification_id, "uid": user_id},
-        ).fetchone()
-
-        if not note:
-            return False, "Nie znaleziono powiadomienia."
-
-        s.execute(
-            text(
-                """
-            DELETE FROM notifications WHERE id=:nid AND user_id=:uid
-        """
-            ),
-            {"nid": notification_id, "uid": user_id},
-        )
-
-    return True, "Usunięto powiadomienie."
-
+                        url = w["video_url"]
+                        with ui.link(target=url).classes("apple-linkcard"):
+                            with ui.row().classes("w-full items-center justify-between no-wrap"):
+                                with ui.row().classes("items-center no-wrap"):
+                                    ui.icon("play_circle").classes("text-2xl").style(f"color:{PRIMARY};")
+                                    with ui.column().classes("gap-0"):
+                                        ui.label("Film z treningu").classes("text-sm font-semibold")
+                                        ui.label(domain(url)).classes("sub")
+                                ui.icon("chevron_right").classes("text-xl").style("opacity:.55;")
 
 @ui.page("/notifications")
 def page_notifications():
-    if not require_login():
+    if not user_service.require_login():
         return
-    refresh_user_in_session()
+    user_service.refresh_user_in_session()
     app_shell("Powiadomienia")
 
-    u = current_user()
+    u = user_service.current_user()
     with center_column():
         ui.button(
             "Oznacz wszystkie jako przeczytane",
             on_click=lambda: (
-                mark_all_notifications_read(int(u["id"])),
+                database_service.mark_all_notifications_read(int(u["id"])),
                 ui.navigate.to("/notifications"),
             ),
         ).classes("w-full").props("unelevated")
 
-        notes = parse_notifications(int(u["id"]))
+        notes = notification_service.parse_notifications(int(u["id"]))
         if not notes:
             with card():
                 ui.label("Brak powiadomień.")
@@ -883,7 +579,7 @@ def page_notifications():
                 ui.button(
                     icon="delete",
                     on_click=lambda nid=n["id"]: (
-                        delete_notification(int(u["id"]), nid),
+                        database_service.delete_notification(int(u["id"]), nid),
                         ui.navigate.to("/notifications"),
                     ),
                 ).props("flat round dense").classes("absolute top-2 right-2")
@@ -896,13 +592,13 @@ def page_notifications():
 
 @ui.page("/add")
 def page_add_workout():
-    if not require_login():
+    if not user_service.require_login():
         return
-    refresh_user_in_session()
+    user_service.refresh_user_in_session()
 
     app_shell("Dodaj trening")
 
-    u = current_user()
+    u = user_service.current_user()
     photo_bytes: dict[str, Optional[bytes]] = {"data": None}
 
     async def on_photo_upload(e):
@@ -935,24 +631,31 @@ def page_add_workout():
             ui.label("Nowy trening").classes("text-base font-bold")
 
             title = ui.input("Nazwa treningu (np. 'Pilates 30 min')").classes("w-full")
+            today_iso = date.today().isoformat()
+
+            ui.label("Kiedy był trening?").classes("text-sm opacity-80")
 
             with ui.row().classes("w-full items-center"):
-                use_cal = ui.checkbox("Wpisz kalorie (opcjonalnie)")
-                calories = ui.number(
-                    "Spalone kalorie", value=300, min=0, max=5000
-                ).classes("w-full")
-                calories.set_visibility(False)
-
-            def toggle_cal():
-                calories.set_visibility(bool(use_cal.value))
-
-            use_cal.on("update:model-value", lambda e: toggle_cal())
-            toggle_cal()
+                with ui.input(value=today_iso).classes("w-full") as workout_date:
+                    with ui.menu().props("no-parent-event") as menu:
+                        with ui.date().bind_value(workout_date):
+                            with ui.row().classes("justify-end"):
+                                ui.button("Zamknij", on_click=menu.close).props("flat")
+                    with workout_date.add_slot("append"):
+                        ui.icon("edit_calendar").on("click", menu.open).classes(
+                            "cursor-pointer"
+                        )
 
             ui.label("Poziom zmęczenia po (1–10)").classes("text-sm opacity-80")
-            fatigue = ui.slider(min=1, max=10, value=6).props("label-always")
+            fatigue = ui.slider(min=1, max=10, value=5).props("label-always")
+
+
+            calories = ui.number(
+                    "Spalone kalorie (opcjonalnie)", min=0, max=5000
+                ).classes("w-full")
 
             video_url = ui.input("Link do filmiku (opcjonalnie)").classes("w-full")
+            comment = ui.textarea("Komentarz (opcjonalnie)").classes("w-full")
 
             ui.label("Zdjęcie (opcjonalnie)").classes("text-sm opacity-80")
             ui.upload(
@@ -973,31 +676,156 @@ def page_add_workout():
                 if data:
                     ppath = save_image(data, int(u["id"]), "workout")
 
-                ok, text_ = create_workout(
+                selected_date = workout_date.value  # YYYY-MM-DD
+                selected_time = "00:00"
+
+                if selected_date == date.today().isoformat():
+                    selected_time = datetime.now().strftime("%H:%M")
+
+                performed_at = datetime.fromisoformat(f"{selected_date} {selected_time}:00")
+
+                ok, text_ = database_service.create_workout(
                     user_id=int(u["id"]),
                     title=title.value,
-                    calories=int(calories.value) if use_cal.value else None,
+                    calories=int(calories.value),
                     fatigue=int(fatigue.value),
                     photo_path=ppath,
                     video_url=video_url.value,
+                    comment=comment.value,
+                    performed_at=performed_at,
                 )
                 msg.set_text(text_)
                 msg.style("color:#0b6b2d;" if ok else "color:#b00020;")
                 if ok:
                     ui.navigate.to("/")
 
-            ui.button("Dodaj", on_click=do_submit).classes("w-full").props("unelevated")
+            ui.button("Dodaj", on_click=do_submit).classes(
+                "w-full apple-primary"
+            ).props("unelevated")
+
+
+@ui.page("/workout/{workout_id:int}/edit")
+def page_edit_workout(workout_id: int):
+    if not user_service.require_login():
+        return
+    user_service.refresh_user_in_session()
+    app_shell("Edytuj trening", show_back=True)
+
+    u = user_service.current_user()
+    uid = int(u["id"])
+
+    w = database_service.get_workout_by_id_for_owner(int(workout_id), uid)
+    if not w:
+        ui.notify("Nie znaleziono treningu (albo nie masz uprawnień).", type="negative")
+        ui.navigate.to("/")
+        return
+
+    photo_bytes: dict[str, Optional[bytes]] = {"data": None}
+
+    async def on_photo_upload(e):
+        data = None
+        if hasattr(e, "content") and isinstance(
+            getattr(e, "content"), (bytes, bytearray)
+        ):
+            data = e.content
+        elif hasattr(e, "file") and hasattr(e.file, "read"):
+            r = e.file.read()
+            data = await r if hasattr(r, "__await__") else r
+        elif hasattr(e, "value"):
+            v = e.value
+            data = await v if hasattr(v, "__await__") else v
+
+        if not isinstance(data, (bytes, bytearray)):
+            ui.notify("Nie udało się odczytać pliku jako bytes.", type="negative")
+            return
+        photo_bytes["data"] = bytes(data)
+
+    with center_column():
+        with card():
+            ui.label("Edytuj trening").classes("text-base font-bold")
+
+            title = ui.input("Nazwa treningu", value=w.get("title") or "").classes(
+                "w-full"
+            )
+
+            with ui.row().classes("w-full items-center"):
+                use_cal = ui.checkbox(
+                    "Wpisz kalorie (opcjonalnie)", value=w.get("calories") is not None
+                )
+                calories = ui.number(
+                    "Spalone kalorie",
+                    value=int(w["calories"]) if w.get("calories") is not None else 300,
+                    min=0,
+                    max=5000,
+                ).classes("w-full")
+                calories.set_visibility(bool(use_cal.value))
+
+            def toggle_cal():
+                calories.set_visibility(bool(use_cal.value))
+
+            use_cal.on("update:model-value", lambda e: toggle_cal())
+            toggle_cal()
+
+            ui.label("Poziom zmęczenia po (1–10)").classes("text-sm opacity-80")
+            fatigue = ui.slider(min=1, max=10, value=int(w.get("fatigue") or 6)).props(
+                "label-always"
+            )
+
+            video_url = ui.input(
+                "Link do filmiku (opcjonalnie)", value=w.get("video_url") or ""
+            ).classes("w-full")
+            comment = ui.textarea(
+                "Komentarz (opcjonalnie)", value=w.get("comment") or ""
+            ).classes("w-full")
+
+            if w.get("photo_path"):
+                ui.label("Aktualne zdjęcie").classes("text-sm opacity-80")
+                ui.image(to_upload_url(w["photo_path"])).classes("w-full rounded-xl")
+
+            ui.label("Podmień zdjęcie (opcjonalnie)").classes("text-sm opacity-80")
+            ui.upload(
+                on_upload=on_photo_upload, auto_upload=True, multiple=False
+            ).props('accept=".jpg,.jpeg,.png"').classes("w-full")
+
+            msg = ui.label().classes("text-sm")
+
+            async def do_save():
+                new_photo_path = None
+                data = photo_bytes["data"]
+                if hasattr(data, "__await__"):
+                    data = await data
+                if data:
+                    new_photo_path = save_image(data, uid, "workout")
+
+                ok, txt = database_service.update_workout(
+                    workout_id=int(workout_id),
+                    user_id=uid,
+                    title=title.value,
+                    calories=int(calories.value) if use_cal.value else None,
+                    fatigue=int(fatigue.value),
+                    new_photo_path=new_photo_path,
+                    video_url=video_url.value,
+                    comment=comment.value,
+                )
+                msg.set_text(txt)
+                msg.style("color:#0b6b2d;" if ok else "color:#b00020;")
+                if ok:
+                    ui.navigate.to("/")
+
+            ui.button("Zapisz", icon="save", on_click=do_save).classes(
+                "w-full apple-primary"
+            ).props("unelevated")
 
 
 @ui.page("/friends")
 def page_friends():
-    if not require_login():
+    if not user_service.require_login():
         return
-    refresh_user_in_session()
+    user_service.refresh_user_in_session()
 
     app_shell("Znajomi")
 
-    u = current_user()
+    u = user_service.current_user()
     uid = int(u["id"])
 
     with center_column():
@@ -1008,18 +836,18 @@ def page_friends():
             msg = ui.label().classes("text-sm")
 
             def do_add():
-                ok, text_ = send_friend_request(uid, email.value)
+                ok, text_ = database_service.send_friend_request(uid, email.value)
                 msg.set_text(text_)
                 msg.style("color:#0b6b2d;" if ok else "color:#b00020;")
                 if ok:
                     ui.navigate.to("/friends")
 
             ui.button("Wyślij zaproszenie", icon="person_add", on_click=do_add).classes(
-                "w-full"
+                "w-full apple-primary"
             ).props("unelevated")
 
         # --- Incoming requests ---
-        incoming = list_incoming_requests(uid)
+        incoming = database_service.list_incoming_requests(uid)
         with card():
             ui.label("Zaproszenia do Ciebie").classes("font-bold")
             if not incoming:
@@ -1042,24 +870,24 @@ def page_friends():
                         with ui.row().classes("items-center"):
 
                             def _accept(rid=rid):
-                                ok, txt = accept_request(uid, rid)
+                                ok, txt = database_service.accept_request(uid, rid)
                                 ui.notify(txt, type="positive" if ok else "negative")
                                 ui.navigate.to("/friends")
 
                             def _decline(rid=rid):
-                                ok, txt = decline_request(uid, rid)
+                                ok, txt = database_service.decline_request(uid, rid)
                                 ui.notify(txt, type="positive" if ok else "negative")
                                 ui.navigate.to("/friends")
 
-                            ui.button("Akceptuj", icon="check", on_click=_accept).props(
-                                "unelevated"
-                            )
-                            ui.button("Odrzuć", icon="close", on_click=_decline).props(
-                                "flat"
-                            )
+                            ui.button(
+                                "Akceptuj", icon="check", on_click=_accept
+                            ).classes("w-full apple-primary").props("unelevated")
+                            ui.button(
+                                "Odrzuć", icon="close", on_click=_decline
+                            ).classes("w-full apple-secondary").props("flat")
 
         # --- Outgoing requests ---
-        outgoing = list_outgoing_requests(uid)
+        outgoing = database_service.list_outgoing_requests(uid)
         with card():
             ui.label("Wysłane zaproszenia").classes("font-bold")
             if not outgoing:
@@ -1080,7 +908,7 @@ def page_friends():
                         ui.chip("pending").style(f"background:{PANEL}; color:#2A0A16;")
 
         # --- Friends list + remove ---
-        friends = list_friends(uid)
+        friends = database_service.list_friends(uid)
         with card():
             ui.label("Twoi znajomi").classes("font-bold")
             if not friends:
@@ -1103,123 +931,268 @@ def page_friends():
                                 ui.label(f["email"]).classes("text-xs opacity-70")
 
                         def _remove(fid=fid):
-                            ok, txt = remove_friend(uid, fid)
+                            ok, txt = database_service.remove_friend(uid, fid)
                             ui.notify(txt, type="positive" if ok else "negative")
                             ui.navigate.to("/friends")
 
-                        ui.button("Usuń", icon="person_remove", on_click=_remove).props(
-                            "flat"
-                        )
-
+                        ui.button(
+                            "Usuń", icon="person_remove", on_click=_remove
+                        ).classes("w-full apple-secondary").props("flat")
 
 @ui.page("/profile")
 def page_profile():
-    if not require_login():
+    if not user_service.require_login():
         return
-    refresh_user_in_session()
+    user_service.refresh_user_in_session()
 
     app_shell("Profil")
 
-    u = current_user()
+    u = user_service.current_user()
+    uid = int(u["id"])
+
     avatar_bytes: dict[str, Optional[bytes]] = {"data": None}
+
+    dlg = ui.dialog()
+    crop_img = None  # ui.image w dialogu
+    status = None    # ui.label w dialogu
+
+    def open_avatar_dialog():
+        avatar_bytes["data"] = None
+        if status:
+            status.set_text("Wybierz zdjęcie, żeby przyciąć.")
+        dlg.open()
+
+    def delete_avatar():
+        database_service.update_avatar(uid, None)
+        fresh = database_service.get_user_by_id(uid)
+        user_service.set_user(fresh)
+        ui.navigate.to("/profile")
 
     async def on_avatar_upload(e):
         data = None
 
-        # Wariant A: bytes w e.content
-        if hasattr(e, "content") and isinstance(
-            getattr(e, "content"), (bytes, bytearray)
-        ):
+        if hasattr(e, "content") and isinstance(getattr(e, "content"), (bytes, bytearray)):
             data = e.content
-
-        # Wariant B: file-like w e.file (czasem read() jest async)
         elif hasattr(e, "file") and hasattr(e.file, "read"):
             r = e.file.read()
             data = await r if hasattr(r, "__await__") else r
-
-        # Wariant C: czasem e.value
         elif hasattr(e, "value"):
             v = e.value
             data = await v if hasattr(v, "__await__") else v
 
         if not isinstance(data, (bytes, bytearray)):
-            ui.notify("Nie udało się odczytać avatara jako bytes.", type="negative")
+            ui.notify("Nie udało się odczytać pliku.", type="negative")
             return
 
         avatar_bytes["data"] = bytes(data)
 
-    with center_column():
-        with card():
-            ui.label("Avatar").classes("font-bold")
+        b64 = base64.b64encode(avatar_bytes["data"]).decode("ascii")
+        data_url = f"data:image/png;base64,{b64}"
 
-            if u.get("avatar_path"):
-                ui.image(to_upload_url(u["avatar_path"])).classes(
-                    "w-24 h-24 rounded-full"
-                )
-            else:
-                ui.label("Brak avatara.").classes("opacity-80")
+        ui.run_javascript(f"""
+            (function(){{
+            const img = document.getElementById('avatar_crop_img');
+            if (!img) {{ console.warn('no avatar_crop_img'); return; }}
+            img.src = "{data_url}";
+            }})();
+            """, timeout=10)
 
-            ui.upload(
-                on_upload=on_avatar_upload,
-                auto_upload=True,
-                multiple=False,
-            ).props('accept=".jpg,.jpeg,.png"').classes("w-full")
+        ui.run_javascript("""
+            (async function(){
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-            msg = ui.label().classes("text-sm")
+            // 1) poczekaj aż dialog DOM się ustabilizuje
+            await sleep(80);
 
-            async def save_avatar():
-                data = avatar_bytes["data"]
-                if not data:
-                    msg.set_text("Najpierw wybierz plik.")
-                    msg.style("color:#b00020;")
-                    return
+            const img = document.getElementById('avatar_crop_img');
+            const wrap = document.getElementById('avatar_crop_wrap');
+            if (!img || !wrap) { console.warn('missing img/wrap'); return; }
 
-                # jeśli mimo wszystko wpadło coroutine
-                if hasattr(data, "__await__"):
-                    data = await data
+            // 2) poczekaj aż obraz się załaduje
+            await new Promise(resolve => {
+                if (img.complete && img.naturalWidth > 0) return resolve();
+                img.onload = () => resolve();
+            });
 
-                path = save_image(data, int(u["id"]), "avatar")
-                update_avatar(int(u["id"]), path)
+            // 3) poczekaj aż kontener ma realny rozmiar
+            let tries = 0;
+            while (wrap.clientHeight < 50 && tries < 20) {
+                await sleep(50);
+                tries++;
+            }
 
-                fresh = get_user_by_id(int(u["id"]))
-                set_user(fresh)
-                ui.navigate.to("/profile")
+            try {
+                if (window._avatarCropper) window._avatarCropper.destroy();
+                window._avatarCropper = new Cropper(img, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                background: false,
+                movable: true,
+                zoomable: true,
+                scalable: false,
+                rotatable: false,
+                responsive: true,
+                preview: '#avatar_crop_preview',
+                });
+            } catch (e) {
+                console.error('Cropper init failed', e);
+            }
+            })();
+            """, timeout=10)
 
-            ui.button("Zapisz avatar", on_click=save_avatar).classes("w-full").props(
-                "unelevated"
+
+        status.set_text("Ustaw kadr (przeciągnij / zoom) i kliknij „Zapisz”.")
+
+    async def save_cropped_avatar():
+        if not avatar_bytes["data"]:
+            ui.notify("Najpierw wybierz zdjęcie.", type="negative")
+            return
+
+        result = await ui.run_javascript("""
+            (function(){
+            if (typeof Cropper === 'undefined') return {ok:false, err:'NO_LIB'};
+            if (!window._avatarCropper) return {ok:false, err:'NO_INSTANCE'};
+            const canvas = window._avatarCropper.getCroppedCanvas({
+                width: 512, height: 512,
+                imageSmoothingEnabled: true,
+                imageSmoothingQuality: 'high',
+            });
+            if (!canvas) return {ok:false, err:'NO_CANVAS'};
+            return {ok:true, data: canvas.toDataURL('image/png')};
+            })();
+            """, timeout=10
             )
+        if not isinstance(result, dict) or not result.get("ok"):
+            ui.notify(f"Crop error: {result.get('err') if isinstance(result, dict) else 'UNKNOWN'}", type="negative")
+            return
 
-            with card():
-                ui.label("Dane").classes("font-bold")
+        data_url = result["data"]
+        cropped_bytes = base64.b64decode(data_url.split(",", 1)[1])
 
-                nick_input = ui.input("Nick", value=u["nick"]).classes("w-full")
-                nick_msg = ui.label().classes("text-sm")
+        path = save_image(cropped_bytes, uid, "avatar")
+        database_service.update_avatar(uid, path)
 
-                def save_nick():
-                    ok, txt = update_nick(int(u["id"]), nick_input.value)
-                    nick_msg.set_text(txt)
-                    nick_msg.style("color:#0b6b2d;" if ok else "color:#b00020;")
-                    if ok:
-                        fresh = get_user_by_id(int(u["id"]))
-                        set_user(fresh)
+        fresh = database_service.get_user_by_id(uid)
+        user_service.set_user(fresh)
 
-                ui.button("Zapisz nick", on_click=save_nick).classes("w-full").props(
-                    "unelevated"
-                )
+        dlg.close()
+        ui.navigate.to("/profile")
 
-                ui.label(f"Email: {u['email']}").classes("opacity-80")
+    with center_column():
+        # --- AWATAR ---
+        with card():
+            ui.label("Awatar").classes("font-bold")
+
+            with ui.row().classes("w-full items-center justify-between"):
+                if u.get("avatar_path"):
+                    ui.image(to_upload_url(u["avatar_path"])).classes("w-24 h-24 rounded-full")
+                else:
+                    with ui.element("div").classes("w-24 h-24 rounded-full").style(
+                        "background: rgba(0,0,0,.04); display:flex; align-items:center; justify-content:center;"
+                    ):
+                        ui.icon("person").classes("text-3xl").style(f"color:{MUTED};")
+
+                with ui.row().classes("items-center").style("gap:10px;"):
+                    if u.get("avatar_path"):
+                        ui.button("Edytuj", icon="edit", on_click=open_avatar_dialog).classes("apple-secondary").props("unelevated")
+                        ui.button("Usuń", icon="delete", on_click=delete_avatar).props("flat").classes("text-red-600")
+                    else:
+                        ui.button("Dodaj awatar", icon="add_a_photo", on_click=open_avatar_dialog).classes("apple-primary").props("unelevated")
+
+        # --- DIALOG ---
+        with dlg:
+            with ui.card().classes("w-full apple-card").style("max-width: 720px;"):
+                ui.label("Ustaw awatar").classes("text-base font-bold")
+
+                with ui.row().classes("w-full items-start justify-between").style("gap:14px;"):
+                    with ui.column().classes("w-full").style("gap: 10px;"):
+                        ui.upload(
+                            on_upload=on_avatar_upload,
+                            auto_upload=True,
+                            multiple=False,
+                        ).props('accept=".jpg,.jpeg,.png"').classes("w-full avatar-upload")
+
+                        status = ui.label("Wybierz zdjęcie, żeby przyciąć.").classes("text-sm")
+
+                        crop_img = ui.html("""
+                        <div id="avatar_crop_wrap" style="width:100%; height:420px; background:rgba(0,0,0,.03); border-radius:16px; overflow:hidden;">
+                        <img id="avatar_crop_img" style="max-width:100%; display:block;">
+                        </div>
+                        """, sanitize=False).classes("w-full")
+
+
+                    with ui.column().classes("items-center").style("width: 120px; gap: 8px;"):
+                        ui.label("Podgląd").classes("text-xs opacity-70")
+                        ui.element("div").props("id=avatar_crop_preview")
+
+                with ui.row().classes("w-full justify-end").style("gap: 10px; margin-top: 12px;"):
+                    ui.button("Anuluj", on_click=dlg.close).classes("apple-secondary").props("flat")
+                    ui.button("Zapisz", icon="check", on_click=save_cropped_avatar).classes("apple-primary").props("unelevated")
+
+        # --- DANE (jak miałaś) ---
+        with card():
+            ui.label("Dane").classes("font-bold")
+
+            with ui.row().classes("w-full items-center justify-between"):
+                nick_label = ui.label(f"Nick: {u['nick']}")
+                ui.button(icon="edit", on_click=lambda: start_edit_nick()).props("flat round dense")
+
+            nick_input = ui.input("Nick", value=u["nick"]).classes("w-full")
+            nick_input.set_visibility(False)
+
+            with ui.row().classes("w-full"):
+                save_btn = ui.button("Zapisz nick", icon="save")
+                cancel_btn = ui.button("Anuluj", icon="close").classes("w-full apple-secondary").props("flat")
+            save_btn.set_visibility(False)
+            cancel_btn.set_visibility(False)
+
+            nick_msg = ui.label().classes("text-sm")
+
+            def start_edit_nick():
+                nick_label.set_visibility(False)
+                nick_input.set_visibility(True)
+                save_btn.set_visibility(True)
+                cancel_btn.set_visibility(True)
+                try:
+                    nick_input.focus()
+                except Exception:
+                    pass
+
+            def stop_edit_nick(reset_value: bool = False):
+                if reset_value:
+                    nick_input.value = u["nick"]
+                nick_label.set_visibility(True)
+                nick_input.set_visibility(False)
+                save_btn.set_visibility(False)
+                cancel_btn.set_visibility(False)
+
+            def save_nick():
+                ok, txt = database_service.update_nick(int(u["id"]), nick_input.value)
+                nick_msg.set_text(txt)
+                nick_msg.style("color:#0b6b2d;" if ok else "color:#b00020;")
+                if ok:
+                    fresh = database_service.get_user_by_id(int(u["id"]))
+                    user_service.set_user(fresh)
+                    ui.navigate.to("/profile")
+
+            save_btn.on("click", lambda e: save_nick())
+            cancel_btn.on("click", lambda e: stop_edit_nick(reset_value=True))
+
+            ui.label(f"Email: {u['email']}").classes("opacity-80")
 
 
 @ui.page("/report")
 def page_report():
-    if not require_login():
+    if not user_service.require_login():
         return
-    refresh_user_in_session()
+    user_service.refresh_user_in_session()
 
     app_shell("Raport 30 dni")
 
-    u = current_user()
-    df = workouts_last_30_days_counts(int(u["id"]))
+    u = user_service.current_user()
+    df = database_service.workouts_last_30_days_counts(int(u["id"]))
 
     with center_column():
         with card():
