@@ -1,12 +1,13 @@
 ﻿import os
 from contextlib import contextmanager
+from typing import Optional
 from urllib.parse import quote_plus
 
+import pandas as pd
 from dotenv import load_dotenv
-from typing import Optional
+from passlib.hash import bcrypt_sha256
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-import pandas as pd
 
 load_dotenv()
 
@@ -31,7 +32,6 @@ if missing:
     )
 
 
-
 class DatabaseService:
 
     DATABASE_URL = (
@@ -41,15 +41,15 @@ class DatabaseService:
 
     def __init__(self):
 
-
         self.engine = create_engine(
             self.DATABASE_URL,
             pool_pre_ping=True,
             future=True,
         )
 
-        self.session_local = sessionmaker(bind=self.engine, autoflush=False, autocommit=False, future=True)
-
+        self.session_local = sessionmaker(
+            bind=self.engine, autoflush=False, autocommit=False, future=True
+        )
 
     @contextmanager
     def get_session(self):
@@ -62,7 +62,6 @@ class DatabaseService:
             raise
         finally:
             session.close()
-
 
     def init_db(self):
         """Tworzy tabele (MVP) jeśli nie istnieją."""
@@ -126,7 +125,6 @@ class DatabaseService:
                 )
             )
 
-
             conn.execute(
                 text(
                     """
@@ -159,19 +157,25 @@ class DatabaseService:
                 )
             )
 
-            conn.execute(text("""
+            conn.execute(
+                text(
+                    """
                 ALTER TABLE workouts
                 ADD COLUMN IF NOT EXISTS performed_at TIMESTAMP;
-                """))
+                """
+                )
+            )
 
-                # backfill: dla starych rekordów ustaw performed_at=created_at
-            conn.execute(text("""
+            # backfill: dla starych rekordów ustaw performed_at=created_at
+            conn.execute(
+                text(
+                    """
                 UPDATE workouts
                 SET performed_at = created_at
                 WHERE performed_at IS NULL;
-                """))
-
-
+                """
+                )
+            )
 
     # -------------------------
     # DB helpers
@@ -190,7 +194,6 @@ class DatabaseService:
                 {"uid": user_id},
             ).fetchall()
         return [dict(r._mapping) for r in rows]
-
 
     def update_nick(self, user_id: int, new_nick: str) -> tuple[bool, str]:
         new_nick = (new_nick or "").strip()
@@ -214,8 +217,9 @@ class DatabaseService:
                 return False, "Ten nick jest już zajęty."
             return False, "Nie udało się zmienić nicku."
 
-
-    def send_friend_request(self, requester_id: int, addressee_email: str) -> tuple[bool, str]:
+    def send_friend_request(
+        self, requester_id: int, addressee_email: str
+    ) -> tuple[bool, str]:
         addressee_email = (addressee_email or "").strip().lower()
         if not addressee_email:
             return False, "Podaj email."
@@ -273,7 +277,6 @@ class DatabaseService:
 
         return True, f"Wysłano zaproszenie do: {addressee_nick}"
 
-
     def list_incoming_requests(self, user_id: int):
         with self.get_session() as s:
             rows = s.execute(
@@ -290,7 +293,6 @@ class DatabaseService:
             ).fetchall()
         return [dict(r._mapping) for r in rows]
 
-
     def list_outgoing_requests(self, user_id: int):
         with self.get_session() as s:
             rows = s.execute(
@@ -306,7 +308,6 @@ class DatabaseService:
                 {"uid": user_id},
             ).fetchall()
         return [dict(r._mapping) for r in rows]
-
 
     def accept_request(self, user_id: int, request_id: int) -> tuple[bool, str]:
         with self.get_session() as s:
@@ -373,7 +374,6 @@ class DatabaseService:
 
         return True, "Zaproszenie zaakceptowane."
 
-
     def decline_request(self, user_id: int, request_id: int) -> tuple[bool, str]:
         with self.get_session() as s:
             req = s.execute(
@@ -419,7 +419,6 @@ class DatabaseService:
 
         return True, "Zaproszenie odrzucone."
 
-
     def remove_friend(self, user_id: int, friend_id: int) -> tuple[bool, str]:
         with self.get_session() as s:
             s.execute(
@@ -431,7 +430,6 @@ class DatabaseService:
                 {"u": friend_id, "f": user_id},
             )
         return True, "Usunięto znajomą."
-
 
     def unread_notifications_count(self, user_id: int) -> int:
         with self.get_session() as s:
@@ -445,7 +443,6 @@ class DatabaseService:
                 {"u": user_id},
             ).fetchone()
         return int(row._mapping["c"]) if row else 0
-
 
     def list_notifications(self, user_id: int, limit: int = 30):
         with self.get_session() as s:
@@ -462,7 +459,7 @@ class DatabaseService:
                 {"u": user_id, "lim": limit},
             ).fetchall()
         return [dict(r._mapping) for r in rows]
-    
+
     def mark_all_notifications_read(self, user_id: int):
         with self.get_session() as s:
             s.execute(
@@ -473,7 +470,6 @@ class DatabaseService:
                 ),
                 {"u": user_id},
             )
-
 
     def add_friend_by_email(self, user_id: int, friend_email: str) -> tuple[bool, str]:
         friend_email = (friend_email or "").strip().lower()
@@ -510,7 +506,6 @@ class DatabaseService:
             )
 
         return True, f"Dodano: {fnick}"
-
 
     def update_avatar(self, user_id: int, avatar_path: str):
         with self.get_session() as s:
@@ -565,7 +560,6 @@ class DatabaseService:
 
         return True, "Dodano trening 💪"
 
-
     def get_workout_by_id_for_owner(self, workout_id: int, user_id: int):
         """Zwraca trening tylko jeśli należy do użytkownika (do edycji/usuwania)."""
         with self.get_session() as s:
@@ -579,7 +573,6 @@ class DatabaseService:
                 {"wid": workout_id, "uid": user_id},
             ).fetchone()
         return dict(row._mapping) if row else None
-
 
     def update_workout(
         self,
@@ -600,14 +593,18 @@ class DatabaseService:
             return False, "Podaj nazwę treningu."
         if fatigue < 1 or fatigue > 10:
             return False, "Zmęczenie musi być w zakresie 1–10."
-        if video_url and not (video_url.startswith("http://") or video_url.startswith("https://")):
+        if video_url and not (
+            video_url.startswith("http://") or video_url.startswith("https://")
+        ):
             return False, "Link do wideo musi zaczynać się od http:// lub https://"
 
         current = self.get_workout_by_id_for_owner(workout_id, user_id)
         if not current:
             return False, "Nie znaleziono treningu (albo nie masz uprawnień)."
 
-        photo_path = new_photo_path if new_photo_path is not None else current.get("photo_path")
+        photo_path = (
+            new_photo_path if new_photo_path is not None else current.get("photo_path")
+        )
 
         with self.get_session() as s:
             s.execute(
@@ -636,7 +633,6 @@ class DatabaseService:
             )
         return True, "Zapisano zmiany ✅"
 
-
     def delete_workout(self, workout_id: int, user_id: int) -> tuple[bool, str]:
         with self.get_session() as s:
             row = s.execute(
@@ -651,8 +647,6 @@ class DatabaseService:
                 {"wid": workout_id, "uid": user_id},
             )
         return True, "Usunięto trening 🗑️"
-
-
 
     def get_feed_workouts(self, user_id: int):
         with self.get_session() as s:
@@ -671,7 +665,6 @@ class DatabaseService:
                 {"uid": user_id},
             ).fetchall()
         return [dict(r._mapping) for r in rows]
-
 
     def workouts_last_30_days_counts(self, user_id: int) -> pd.DataFrame:
         with self.get_session() as s:
@@ -693,8 +686,10 @@ class DatabaseService:
         if not rows:
             return pd.DataFrame(columns=["nick", "cnt"])
         return pd.DataFrame([dict(r._mapping) for r in rows])
-    
-    def delete_notification(self, user_id: int, notification_id: int) -> tuple[bool, str]:
+
+    def delete_notification(
+        self, user_id: int, notification_id: int
+    ) -> tuple[bool, str]:
         with self.get_session() as s:
             note = s.execute(
                 text(
@@ -719,7 +714,7 @@ class DatabaseService:
             )
 
         return True, "Usunięto powiadomienie."
-    
+
     def get_user_by_id(self, user_id: int):
         with self.get_session() as s:
             row = s.execute(
@@ -727,3 +722,40 @@ class DatabaseService:
                 {"id": user_id},
             ).fetchone()
         return dict(row._mapping) if row else None
+
+    def change_password(
+        self, user_id: int, old_password: str, new_password: str
+    ) -> tuple[bool, str]:
+        old_password = old_password or ""
+        new_password = new_password or ""
+
+        if len(new_password) < 8:
+            return False, "Nowe hasło musi mieć minimum 8 znaków."
+
+        with self.get_session() as s:
+            row = s.execute(
+                text("SELECT password_hash FROM users WHERE id = :id"),
+                {"id": user_id},
+            ).fetchone()
+
+            if not row:
+                return False, "Nie znaleziono użytkownika."
+
+            password_hash = row._mapping["password_hash"]
+
+            try:
+                ok = bcrypt_sha256.verify(old_password, password_hash)
+            except Exception:
+                ok = False
+
+            if not ok:
+                return False, "Aktualne hasło jest nieprawidłowe."
+
+            new_hash = bcrypt_sha256.hash(new_password)
+
+            s.execute(
+                text("UPDATE users SET password_hash = :ph WHERE id = :id"),
+                {"ph": new_hash, "id": user_id},
+            )
+
+        return True, "Hasło zostało zmienione."

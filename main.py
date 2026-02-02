@@ -4,6 +4,8 @@ import base64
 import io
 import os
 import time
+from datetime import date, datetime
+from pathlib import Path
 from typing import Optional
 
 import matplotlib.pyplot as plt
@@ -14,12 +16,9 @@ from auth import create_user
 from auth import login as auth_login
 from services.db_service import DatabaseService
 from services.notification_service import NotificationService
-from storage import get_signed_url, save_image
-from pathlib import Path
 from services.user_service import UserService
+from storage import get_signed_url, save_image
 from utils.helpers import domain
-from datetime import datetime, date
-
 
 load_dotenv()
 
@@ -260,7 +259,8 @@ ui.add_head_html(
     shared=True,
 )
 
-ui.add_head_html("""
+ui.add_head_html(
+    """
 <link rel="stylesheet" href="https://unpkg.com/cropperjs@1.6.2/dist/cropper.min.css">
 <script src="https://unpkg.com/cropperjs@1.6.2/dist/cropper.min.js"></script>
 
@@ -295,7 +295,9 @@ ui.add_head_html("""
   display: none !important; /* ukrywa wielką listę postępu */
 }
 </style>
-""", shared=True)
+""",
+    shared=True,
+)
 
 
 def to_upload_url(file_path: str) -> str:
@@ -388,9 +390,9 @@ def app_shell(title: str, *, show_back: bool = False):
                 "flat round"
             ).classes("gt-xs")
 
-            with ui.button(icon="logout", on_click=user_service.logout).props("flat round").classes(
-                "lt-sm"
-            ):
+            with ui.button(icon="logout", on_click=user_service.logout).props(
+                "flat round"
+            ).classes("lt-sm"):
                 ui.tooltip("Wyloguj")
 
     # bottom nav for mobile
@@ -500,7 +502,7 @@ def page_feed():
                                     "text-base font-semibold"
                                 )
                                 # created_at może być datetime lub string - normalizujemy do tekstu
-                                dt = (w.get("performed_at") or w.get("created_at"))
+                                dt = w.get("performed_at") or w.get("created_at")
                                 ts = dt.strftime("%Y-%m-%d %H:%M") if dt else ""
                                 ui.label(ts).classes("text-sm apple-muted")
 
@@ -543,13 +545,22 @@ def page_feed():
                     if w.get("video_url"):
                         url = w["video_url"]
                         with ui.link(target=url).classes("apple-linkcard"):
-                            with ui.row().classes("w-full items-center justify-between no-wrap"):
+                            with ui.row().classes(
+                                "w-full items-center justify-between no-wrap"
+                            ):
                                 with ui.row().classes("items-center no-wrap"):
-                                    ui.icon("play_circle").classes("text-2xl").style(f"color:{PRIMARY};")
+                                    ui.icon("play_circle").classes("text-2xl").style(
+                                        f"color:{PRIMARY};"
+                                    )
                                     with ui.column().classes("gap-0"):
-                                        ui.label("Film z treningu").classes("text-sm font-semibold")
+                                        ui.label("Film z treningu").classes(
+                                            "text-sm font-semibold"
+                                        )
                                         ui.label(domain(url)).classes("sub")
-                                ui.icon("chevron_right").classes("text-xl").style("opacity:.55;")
+                                ui.icon("chevron_right").classes("text-xl").style(
+                                    "opacity:.55;"
+                                )
+
 
 @ui.page("/notifications")
 def page_notifications():
@@ -649,10 +660,9 @@ def page_add_workout():
             ui.label("Poziom zmęczenia po (1–10)").classes("text-sm opacity-80")
             fatigue = ui.slider(min=1, max=10, value=5).props("label-always")
 
-
             calories = ui.number(
-                    "Spalone kalorie (opcjonalnie)", min=0, max=5000
-                ).classes("w-full")
+                "Spalone kalorie (opcjonalnie)", min=0, max=5000
+            ).classes("w-full")
 
             video_url = ui.input("Link do filmiku (opcjonalnie)").classes("w-full")
             comment = ui.textarea("Komentarz (opcjonalnie)").classes("w-full")
@@ -682,7 +692,9 @@ def page_add_workout():
                 if selected_date == date.today().isoformat():
                     selected_time = datetime.now().strftime("%H:%M")
 
-                performed_at = datetime.fromisoformat(f"{selected_date} {selected_time}:00")
+                performed_at = datetime.fromisoformat(
+                    f"{selected_date} {selected_time}:00"
+                )
 
                 ok, text_ = database_service.create_workout(
                     user_id=int(u["id"]),
@@ -939,6 +951,7 @@ def page_friends():
                             "Usuń", icon="person_remove", on_click=_remove
                         ).classes("w-full apple-secondary").props("flat")
 
+
 @ui.page("/profile")
 def page_profile():
     if not user_service.require_login():
@@ -954,7 +967,7 @@ def page_profile():
 
     dlg = ui.dialog()
     crop_img = None  # ui.image w dialogu
-    status = None    # ui.label w dialogu
+    status = None  # ui.label w dialogu
 
     def open_avatar_dialog():
         avatar_bytes["data"] = None
@@ -971,7 +984,9 @@ def page_profile():
     async def on_avatar_upload(e):
         data = None
 
-        if hasattr(e, "content") and isinstance(getattr(e, "content"), (bytes, bytearray)):
+        if hasattr(e, "content") and isinstance(
+            getattr(e, "content"), (bytes, bytearray)
+        ):
             data = e.content
         elif hasattr(e, "file") and hasattr(e.file, "read"):
             r = e.file.read()
@@ -989,15 +1004,19 @@ def page_profile():
         b64 = base64.b64encode(avatar_bytes["data"]).decode("ascii")
         data_url = f"data:image/png;base64,{b64}"
 
-        ui.run_javascript(f"""
+        ui.run_javascript(
+            f"""
             (function(){{
             const img = document.getElementById('avatar_crop_img');
             if (!img) {{ console.warn('no avatar_crop_img'); return; }}
             img.src = "{data_url}";
             }})();
-            """, timeout=10)
+            """,
+            timeout=10,
+        )
 
-        ui.run_javascript("""
+        ui.run_javascript(
+            """
             (async function(){
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -1040,8 +1059,9 @@ def page_profile():
                 console.error('Cropper init failed', e);
             }
             })();
-            """, timeout=10)
-
+            """,
+            timeout=10,
+        )
 
         status.set_text("Ustaw kadr (przeciągnij / zoom) i kliknij „Zapisz”.")
 
@@ -1050,7 +1070,8 @@ def page_profile():
             ui.notify("Najpierw wybierz zdjęcie.", type="negative")
             return
 
-        result = await ui.run_javascript("""
+        result = await ui.run_javascript(
+            """
             (function(){
             if (typeof Cropper === 'undefined') return {ok:false, err:'NO_LIB'};
             if (!window._avatarCropper) return {ok:false, err:'NO_INSTANCE'};
@@ -1062,10 +1083,14 @@ def page_profile():
             if (!canvas) return {ok:false, err:'NO_CANVAS'};
             return {ok:true, data: canvas.toDataURL('image/png')};
             })();
-            """, timeout=10
-            )
+            """,
+            timeout=10,
+        )
         if not isinstance(result, dict) or not result.get("ok"):
-            ui.notify(f"Crop error: {result.get('err') if isinstance(result, dict) else 'UNKNOWN'}", type="negative")
+            ui.notify(
+                f"Crop error: {result.get('err') if isinstance(result, dict) else 'UNKNOWN'}",
+                type="negative",
+            )
             return
 
         data_url = result["data"]
@@ -1087,7 +1112,9 @@ def page_profile():
 
             with ui.row().classes("w-full items-center justify-between"):
                 if u.get("avatar_path"):
-                    ui.image(to_upload_url(u["avatar_path"])).classes("w-24 h-24 rounded-full")
+                    ui.image(to_upload_url(u["avatar_path"])).classes(
+                        "w-24 h-24 rounded-full"
+                    )
                 else:
                     with ui.element("div").classes("w-24 h-24 rounded-full").style(
                         "background: rgba(0,0,0,.04); display:flex; align-items:center; justify-content:center;"
@@ -1096,91 +1123,230 @@ def page_profile():
 
                 with ui.row().classes("items-center").style("gap:10px;"):
                     if u.get("avatar_path"):
-                        ui.button("Edytuj", icon="edit", on_click=open_avatar_dialog).classes("apple-secondary").props("unelevated")
-                        ui.button("Usuń", icon="delete", on_click=delete_avatar).props("flat").classes("text-red-600")
+                        ui.button(
+                            "Edytuj", icon="edit", on_click=open_avatar_dialog
+                        ).classes("apple-secondary").props("unelevated")
+                        ui.button("Usuń", icon="delete", on_click=delete_avatar).props(
+                            "flat"
+                        ).classes("text-red-600")
                     else:
-                        ui.button("Dodaj awatar", icon="add_a_photo", on_click=open_avatar_dialog).classes("apple-primary").props("unelevated")
+                        ui.button(
+                            "Dodaj awatar",
+                            icon="add_a_photo",
+                            on_click=open_avatar_dialog,
+                        ).classes("apple-primary").props("unelevated")
 
         # --- DIALOG ---
         with dlg:
             with ui.card().classes("w-full apple-card").style("max-width: 720px;"):
                 ui.label("Ustaw awatar").classes("text-base font-bold")
 
-                with ui.row().classes("w-full items-start justify-between").style("gap:14px;"):
+                with ui.row().classes("w-full items-start justify-between").style(
+                    "gap:14px;"
+                ):
                     with ui.column().classes("w-full").style("gap: 10px;"):
                         ui.upload(
                             on_upload=on_avatar_upload,
                             auto_upload=True,
                             multiple=False,
-                        ).props('accept=".jpg,.jpeg,.png"').classes("w-full avatar-upload")
+                        ).props('accept=".jpg,.jpeg,.png"').classes(
+                            "w-full avatar-upload"
+                        )
 
-                        status = ui.label("Wybierz zdjęcie, żeby przyciąć.").classes("text-sm")
+                        status = ui.label("Wybierz zdjęcie, żeby przyciąć.").classes(
+                            "text-sm"
+                        )
 
-                        crop_img = ui.html("""
+                        crop_img = ui.html(
+                            """
                         <div id="avatar_crop_wrap" style="width:100%; height:420px; background:rgba(0,0,0,.03); border-radius:16px; overflow:hidden;">
                         <img id="avatar_crop_img" style="max-width:100%; display:block;">
                         </div>
-                        """, sanitize=False).classes("w-full")
+                        """,
+                            sanitize=False,
+                        ).classes("w-full")
 
-
-                    with ui.column().classes("items-center").style("width: 120px; gap: 8px;"):
+                    with ui.column().classes("items-center").style(
+                        "width: 120px; gap: 8px;"
+                    ):
                         ui.label("Podgląd").classes("text-xs opacity-70")
                         ui.element("div").props("id=avatar_crop_preview")
 
-                with ui.row().classes("w-full justify-end").style("gap: 10px; margin-top: 12px;"):
-                    ui.button("Anuluj", on_click=dlg.close).classes("apple-secondary").props("flat")
-                    ui.button("Zapisz", icon="check", on_click=save_cropped_avatar).classes("apple-primary").props("unelevated")
+                with ui.row().classes("w-full justify-end").style(
+                    "gap: 10px; margin-top: 12px;"
+                ):
+                    ui.button("Anuluj", on_click=dlg.close).classes(
+                        "apple-secondary"
+                    ).props("flat")
+                    ui.button(
+                        "Zapisz", icon="check", on_click=save_cropped_avatar
+                    ).classes("apple-primary").props("unelevated")
 
-        # --- DANE (jak miałaś) ---
+        # --- DANE ---
         with card():
-            ui.label("Dane").classes("font-bold")
+            ui.label("Dane").classes("text-base font-bold")
 
-            with ui.row().classes("w-full items-center justify-between"):
-                nick_label = ui.label(f"Nick: {u['nick']}")
-                ui.button(icon="edit", on_click=lambda: start_edit_nick()).props("flat round dense")
+            def row_item(
+                label: str,
+                value: str,
+                *,
+                icon: str | None = None,
+                on_click=None,
+                muted: bool = False,
+            ):
+                with ui.row().classes("w-full items-center justify-between").style(
+                    "padding: 12px 6px; border-top: 1px solid rgba(140, 30, 75, 0.10);"
+                ):
+                    with ui.row().classes("items-center").style("gap:10px;"):
+                        if icon:
+                            ui.icon(icon).style(f"color:{PRIMARY}; opacity:.85;")
+                        with ui.column().classes("gap-0"):
+                            ui.label(label).classes(
+                                "text-xs uppercase tracking-wide"
+                            ).style(f"color:{MUTED}; letter-spacing:.06em;")
+                            ui.label(value).classes("text-base").style(
+                                "line-height:1.15;"
+                                + ("; opacity:.75;" if muted else "")
+                            )
 
-            nick_input = ui.input("Nick", value=u["nick"]).classes("w-full")
-            nick_input.set_visibility(False)
+                    if on_click:
+                        ui.button(icon="chevron_right", on_click=on_click).props(
+                            "flat round dense"
+                        ).style(f"color:{MUTED};")
 
-            with ui.row().classes("w-full"):
-                save_btn = ui.button("Zapisz nick", icon="save")
-                cancel_btn = ui.button("Anuluj", icon="close").classes("w-full apple-secondary").props("flat")
-            save_btn.set_visibility(False)
-            cancel_btn.set_visibility(False)
-
+            # --- dane: edycja nicku ---
+            nick_dlg = ui.dialog()
             nick_msg = ui.label().classes("text-sm")
 
-            def start_edit_nick():
-                nick_label.set_visibility(False)
-                nick_input.set_visibility(True)
-                save_btn.set_visibility(True)
-                cancel_btn.set_visibility(True)
-                try:
-                    nick_input.focus()
-                except Exception:
-                    pass
+            with nick_dlg:
+                with ui.card().classes("w-full apple-card").style("max-width:520px;"):
+                    ui.label("Zmień nick").classes("text-base font-bold")
+                    nick_input = ui.input("Nick", value=u["nick"]).classes("w-full")
 
-            def stop_edit_nick(reset_value: bool = False):
-                if reset_value:
-                    nick_input.value = u["nick"]
-                nick_label.set_visibility(True)
-                nick_input.set_visibility(False)
-                save_btn.set_visibility(False)
-                cancel_btn.set_visibility(False)
+                    with ui.row().classes("w-full justify-end").style(
+                        "gap:10px; margin-top:10px;"
+                    ):
+                        ui.button("Anuluj", on_click=nick_dlg.close).classes(
+                            "apple-secondary"
+                        ).props("flat")
 
-            def save_nick():
-                ok, txt = database_service.update_nick(int(u["id"]), nick_input.value)
-                nick_msg.set_text(txt)
-                nick_msg.style("color:#0b6b2d;" if ok else "color:#b00020;")
-                if ok:
-                    fresh = database_service.get_user_by_id(int(u["id"]))
-                    user_service.set_user(fresh)
-                    ui.navigate.to("/profile")
+                        def _save_nick():
+                            ok, txt = database_service.update_nick(
+                                uid, nick_input.value
+                            )
+                            nick_msg.set_text(txt)
+                            nick_msg.style("color:#0b6b2d;" if ok else "color:#b00020;")
+                            if ok:
+                                fresh = database_service.get_user_by_id(uid)
+                                user_service.set_user(fresh)
+                                nick_dlg.close()
+                                ui.navigate.to("/profile")
 
-            save_btn.on("click", lambda e: save_nick())
-            cancel_btn.on("click", lambda e: stop_edit_nick(reset_value=True))
+                        ui.button("Zapisz", icon="check", on_click=_save_nick).classes(
+                            "apple-primary"
+                        ).props("unelevated")
+                    nick_msg
 
-            ui.label(f"Email: {u['email']}").classes("opacity-80")
+            def open_nick_dialog():
+                nick_msg.set_text("")
+                nick_input.value = u["nick"]
+                nick_dlg.open()
+
+            # --- dialog: zmiana hasła ---
+            pwd_dlg = ui.dialog()
+            pwd_msg = None
+
+            with pwd_dlg:
+                with ui.card().classes("w-full apple-card").style("max-width:520px;"):
+                    ui.label("Zmień hasło").classes("text-base font-bold")
+
+                    old_pwd = (
+                        ui.input("Aktualne hasło")
+                        .props("type=password")
+                        .classes("w-full")
+                    )
+                    new_pwd = (
+                        ui.input("Nowe hasło (min. 8 znaków)")
+                        .props("type=password")
+                        .classes("w-full")
+                    )
+                    new_pwd2 = (
+                        ui.input("Powtórz nowe hasło")
+                        .props("type=password")
+                        .classes("w-full")
+                    )
+
+                    pwd_msg = (
+                        ui.label("")
+                        .classes("text-sm")
+                        .style(f"color:{MUTED}; margin-top:6px;")
+                    )
+
+                    with ui.row().classes("w-full justify-end").style(
+                        "gap:10px; margin-top:10px;"
+                    ):
+                        ui.button("Anuluj", on_click=pwd_dlg.close).classes(
+                            "apple-secondary"
+                        ).props("flat")
+
+                        def _change_password():
+                            pwd_msg.set_text("")
+                            pwd_msg.style(f"color:{MUTED};")
+
+                            if (new_pwd.value or "") != (new_pwd2.value or ""):
+                                pwd_msg.set_text("Nowe hasła nie są takie same.")
+                                pwd_msg.style("color:#b00020;")
+                                return
+
+                            if len(new_pwd.value or "") < 8:
+                                pwd_msg.set_text(
+                                    "Nowe hasło musi mieć minimum 8 znaków."
+                                )
+                                pwd_msg.style("color:#b00020;")
+                                return
+
+                            ok, txt = database_service.change_password(
+                                user_id=uid,
+                                old_password=old_pwd.value or "",
+                                new_password=new_pwd.value or "",
+                            )
+
+                            pwd_msg.set_text(txt)
+                            pwd_msg.style("color:#0b6b2d;" if ok else "color:#b00020;")
+
+                            if ok:
+                                pwd_dlg.close()
+                                ui.notify("Hasło zostało zmienione.", type="positive")
+
+                        ui.button(
+                            "Zapisz", icon="check", on_click=_change_password
+                        ).classes("apple-primary").props("unelevated")
+
+                    pwd_msg
+
+            def open_pwd_dialog():
+                old_pwd.value = ""
+                new_pwd.value = ""
+                new_pwd2.value = ""
+                pwd_dlg.open()
+
+            # Pierwszy “row” bez border-top
+            with ui.row().classes("w-full items-center justify-between").style(
+                "padding: 12px 6px;"
+            ):
+                with ui.row().classes("items-center").style("gap:10px;"):
+                    ui.icon("badge").style(f"color:{PRIMARY}; opacity:.85;")
+                    with ui.column().classes("gap-0"):
+                        ui.label("Nick").classes(
+                            "text-xs uppercase tracking-wide"
+                        ).style(f"color:{MUTED}; letter-spacing:.06em;")
+                        ui.label(u["nick"]).classes("text-base")
+                ui.button(icon="chevron_right", on_click=open_nick_dialog).props(
+                    "flat round dense"
+                ).style(f"color:{MUTED};")
+
+            row_item("Email", u["email"], icon="mail", muted=True)  # readonly
+            row_item("Hasło", "••••••••", icon="lock", on_click=open_pwd_dialog)
 
 
 @ui.page("/report")
