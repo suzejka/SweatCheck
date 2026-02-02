@@ -177,6 +177,11 @@ class DatabaseService:
                 )
             )
 
+            conn.execute(text("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'USER';
+                """))
+
     # -------------------------
     # DB helpers
     # -------------------------
@@ -216,6 +221,30 @@ class DatabaseService:
             if "users_nick_key" in msg or ("unique" in msg and "nick" in msg):
                 return False, "Ten nick jest już zajęty."
             return False, "Nie udało się zmienić nicku."
+        
+    def set_role(self, user_id: int, role: str) -> tuple[bool, str]:
+        role = (role or "").strip().upper()
+        if role not in {"USER", "ADMIN"}:
+            return False, "Nieprawidłowa rola."
+        with self.get_session() as s:
+            s.execute(text("UPDATE users SET role=:r WHERE id=:id"), {"r": role, "id": user_id})
+        return True, "Zapisano rolę."
+
+    def broadcast_notification(self, *, type_: str, message: str) -> tuple[bool, str]:
+        type_ = (type_ or "").strip()
+        message = (message or "").strip()
+        if not message:
+            return False, "Wpisz treść powiadomienia."
+
+        # payload trzymamy w JSONB; zrobimy prosto: {"message": "..."}
+        with self.get_session() as s:
+            s.execute(text("""
+                INSERT INTO notifications(user_id, type, payload)
+                SELECT u.id, :t, jsonb_build_object('message', :m)
+                FROM users u
+            """), {"t": type_ or "admin_broadcast", "m": message})
+
+        return True, "Wysłano powiadomienie do wszystkich."
 
     def send_friend_request(
         self, requester_id: int, addressee_email: str

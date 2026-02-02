@@ -19,7 +19,7 @@ class NotificationService:
                     else None
                 )
                 p["message"] = (
-                    f"Nowe zaproszenie od {from_user['nick']}"
+                    f"Nowe zaproszenie od **{from_user['nick']}**"
                     if from_user
                     else "Nowe zaproszenie"
                 )
@@ -37,7 +37,7 @@ class NotificationService:
                     else None
                 )
                 p["message"] = (
-                    f"{by_user['nick']} zaakceptował(a) Twoje zaproszenie"
+                    f"**{by_user['nick']}** zaakceptował(a) Twoje zaproszenie"
                     if by_user
                     else "Ktoś zaakceptował(a) Twoje zaproszenie"
                 )
@@ -55,11 +55,19 @@ class NotificationService:
                     else None
                 )
                 p["message"] = (
-                    f"{by_user['nick']} odrzucił(a) Twoje zaproszenie"
+                    f"**{by_user['nick']}** odrzucił(a) Twoje zaproszenie"
                     if by_user
                     else "Ktoś odrzucił(a) Twoje zaproszenie"
                 )
                 p["user_friendly_type"] = "Odrzucono zaproszenie"
+                p["user_friendly_created_at"] = (
+                    p["created_at"].strftime("%Y-%m-%d %H:%M")
+                    if p["created_at"]
+                    else ""
+                )
+            elif p["type"] == "admin_broadcast":
+                p["message"] = p_payload.get("message")
+                p["user_friendly_type"] = "Ogłoszenie od adminki"
                 p["user_friendly_created_at"] = (
                     p["created_at"].strftime("%Y-%m-%d %H:%M")
                     if p["created_at"]

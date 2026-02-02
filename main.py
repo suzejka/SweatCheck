@@ -220,6 +220,45 @@ html, body {
 .q-field__input::placeholder {
   padding-left: 0 !important;      /* padding jest na containerze */
 }
+/* Ładny markdown w notyfikacjach */
+.notice-md {
+  font-size: 14px;
+  line-height: 1.35;
+  color: rgba(26,26,26,.85);
+  white-space: pre-line;
+}
+
+.notice-md p { margin: 6px 0; }
+.notice-md ul, .notice-md ol { margin: 6px 0 6px 18px; }
+.notice-md li { margin: 4px 0; }
+
+.notice-md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: rgba(142, 29, 74, 0.08);
+}
+
+.notice-md pre {
+  padding: 10px 12px;
+  border-radius: 14px;
+  overflow-x: auto;
+  background: rgba(0,0,0,.04);
+}
+
+.notice-md blockquote {
+  margin: 8px 0;
+  padding-left: 10px;
+  border-left: 3px solid rgba(140, 30, 75, 0.25);
+  color: rgba(26,26,26,.75);
+}
+
+.notice-md a {
+  color: #8E1D4A;
+  text-decoration: none;
+}
+.notice-md a:hover { text-decoration: underline; }
 </style>
                 
 """,
@@ -368,6 +407,17 @@ def app_shell(title: str, *, show_back: bool = False):
 
         if user_service.current_user():
             u = user_service.current_user()
+            is_admin = (u.get("role") == "ADMIN")
+
+            if is_admin:
+                ui.button("Panel admina", icon="admin_panel_settings",
+                        on_click=lambda: ui.navigate.to("/admin")
+                ).props("flat round").classes("gt-xs")
+
+                with ui.button(icon="admin_panel_settings",
+                            on_click=lambda: ui.navigate.to("/admin")
+                ).props("flat round").classes("lt-sm"):
+                    ui.tooltip("Panel admina")
             cnt = database_service.unread_notifications_count(int(u["id"]))
             with ui.element("div").classes("relative"):
                 ui.button(
@@ -423,6 +473,37 @@ def center_column():
 # -------------------------
 # Pages
 # -------------------------
+
+@ui.page("/admin")
+def page_admin():
+    if not user_service.require_login():
+        return
+    user_service.refresh_user_in_session()
+    app_shell("Panel admina", show_back=True)
+
+    u = user_service.current_user()
+    if u.get("role") != "ADMIN":
+        ui.notify("Brak uprawnień.", type="negative")
+        ui.navigate.to("/")
+        return
+
+    with center_column():
+        with card():
+            ui.label("Wyślij powiadomienie do wszystkich").classes("text-base font-bold")
+            msg = ui.textarea("Treść").classes("w-full")
+            type_ = ui.input("Typ (opcjonalnie)", value="admin_broadcast").classes("w-full")
+            status = ui.label("").classes("text-sm")
+
+            def send():
+                ok, txt = database_service.broadcast_notification(type_=type_.value, message=msg.value)
+                status.set_text(txt)
+                status.style("color:#0b6b2d;" if ok else "color:#b00020;")
+                if ok:
+                    msg.value = ""
+                    ui.notify("Wysłano ✅", type="positive")
+
+            ui.button("Wyślij", icon="send", on_click=send).classes("w-full apple-primary").props("unelevated")
+
 @ui.page("/login")
 def page_login():
     app_shell("SweatCheck")
@@ -598,7 +679,7 @@ def page_notifications():
                 ui.label(str(n["user_friendly_created_at"])).classes(
                     "text-xs opacity-70"
                 )
-                ui.label(str(n["message"])).classes("text-sm opacity-80")
+                ui.markdown(str(n["message"])).classes("notice-md")
 
 
 @ui.page("/add")
