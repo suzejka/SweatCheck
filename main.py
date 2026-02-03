@@ -762,7 +762,7 @@ def page_feed():
                                 )
                                 # created_at może być datetime lub string - normalizujemy do tekstu
                                 dt = w.get("performed_at") or w.get("created_at")
-                                ts = dt.strftime("%Y-%m-%d %H:%M") if dt else ""
+                                ts = dt.strftime("%Y-%m-%d") if dt else ""
                                 ui.label(ts).classes("text-sm apple-muted")
 
                         with ui.row().classes("items-center"):
