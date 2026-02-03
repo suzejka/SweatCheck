@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import os
@@ -686,6 +687,22 @@ def page_login():
                 "unelevated"
             )
 
+        with ui.column().classes("items-center gap-1 mt-4"):
+            ui.label("Nie masz konta?").classes("text-sm opacity-80")
+
+            ui.button(
+                "Zarejestruj się",
+                on_click=lambda: ui.navigate.to("/signup"),
+            ).props("flat")
+
+
+@ui.page("/signup")
+def page_signup():
+    app_shell("SweatCheck")
+
+    with ui.column().classes("w-full items-stretch").style(
+        "max-width:520px; margin: 0 auto; padding: 12px;"
+    ):
         with card():
             ui.label("Załóż konto").classes("text-base font-bold")
             nick = ui.input("Nick").classes("w-full")
@@ -700,12 +717,17 @@ def page_login():
             def do_register():
                 ok, text_ = create_user(nick.value, remail.value, rpwd.value)
                 reg_msg.set_text(text_)
-                reg_msg.style("color:#0b6b2d;" if ok else "color:#b00020;")
+                if ok:
+                    reg_msg.style("color:#0b6b2d;")
+
+                    ui.navigate.to("/login")
+
+                else:
+                    reg_msg.style("color:#b00020;")
 
             ui.button("Utwórz konto", on_click=do_register).classes("w-full").props(
                 "unelevated"
             )
-
 
 @ui.page("/")
 def page_feed():
